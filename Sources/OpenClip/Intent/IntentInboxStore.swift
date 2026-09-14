@@ -36,10 +36,16 @@ public final class IntentInboxStore: ObservableObject {
     @Published public var errorMessage: String?
     private let repository: any IntentRepository
     private let metrics: IntentMetricsRecorder
+    private let notificationScheduler: any IntentNotificationScheduling
 
-    public init(repository: any IntentRepository, metrics: IntentMetricsRecorder = .shared) {
+    public init(
+        repository: any IntentRepository,
+        metrics: IntentMetricsRecorder = .shared,
+        notificationScheduler: any IntentNotificationScheduling = UNUserNotificationIntentScheduler.shared
+    ) {
         self.repository = repository
         self.metrics = metrics
+        self.notificationScheduler = notificationScheduler
     }
 
     public var selectedIntent: CapturedIntent? {
@@ -70,45 +76,93 @@ public final class IntentInboxStore: ObservableObject {
         guard var intent = intents.first(where: { $0.id == id }) else { return }
         intent.status = status
         intent.updatedAt = Date()
-        Task { @MainActor in
-            do {
-                try await repository.update(intent)
-                await reload()
-                let outcome: IntentMetricEvent.Outcome
-                switch status {
-                case .open: outcome = .reopened
-                case .waiting: outcome = .markedWaiting
-                case .done: outcome = .markedDone
-                case .cancelled: outcome = .cancelled
-                }
-                await metrics.record(IntentMetricEvent(
-                    parser: intent.parser,
-                    confidence: intent.parserConfidence,
-                    intentClass: intent.type,
-                    outcome: outcome
-                ))
-            } catch {
-                errorMessage = error.localizedDescription
+        Task { await self.applyStatus(status, to: intent) }
+    }
+
+    private func applyStatus(_ status: IntentStatus, to intent: CapturedIntent) async {
+        do {
+            try await repository.update(intent)
+            // DONE/CANCELLED must never fire a stale reminder; OPEN/WAITING reschedules
+            // against whatever temporal value the intent still has.
+            await notificationScheduler.scheduleReminder(for: intent)
+            await reload()
+            let outcome: IntentMetricEvent.Outcome
+            switch status {
+            case .open: outcome = .reopened
+            case .waiting: outcome = .markedWaiting
+            case .done: outcome = .markedDone
+            case .cancelled: outcome = .cancelled
             }
+            await metrics.record(IntentMetricEvent(
+                parser: intent.parser,
+                confidence: intent.parserConfidence,
+                intentClass: intent.type,
+                outcome: outcome
+            ))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Persists an edited intent (e.g. from the When control) and reschedules its reminder to
+    /// match — cancelling any stale one first. The one path both Capture Preview and Inbox detail
+    /// editing funnel through; see `IntentWhenControl`.
+    public func update(_ intent: CapturedIntent) {
+        var updated = intent
+        updated.updatedAt = Date()
+        Task { await self.applyUpdate(updated) }
+    }
+
+    private func applyUpdate(_ updated: CapturedIntent) async {
+        do {
+            try await repository.update(updated)
+            await notificationScheduler.scheduleReminder(for: updated)
+            await reload()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
     public func delete(_ id: UUID) {
-        Task { @MainActor in
-            do {
-                let deleted = intents.first { $0.id == id }
-                try await repository.delete(id: id)
-                selectedID = nil
-                await reload()
-                await metrics.record(IntentMetricEvent(
-                    parser: deleted?.parser ?? "unknown",
-                    confidence: deleted?.parserConfidence,
-                    intentClass: deleted?.type,
-                    outcome: .deleted
-                ))
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+        Task { await self.applyDelete(id) }
+    }
+
+    private func applyDelete(_ id: UUID) async {
+        do {
+            let deleted = intents.first { $0.id == id }
+            try await repository.delete(id: id)
+            await notificationScheduler.cancelReminder(for: id)
+            selectedID = nil
+            await reload()
+            await metrics.record(IntentMetricEvent(
+                parser: deleted?.parser ?? "unknown",
+                confidence: deleted?.parserConfidence,
+                intentClass: deleted?.type,
+                outcome: .deleted
+            ))
+        } catch {
+            errorMessage = error.localizedDescription
         }
+    }
+}
+
+extension IntentInboxStore {
+    /// Test/programmatic seam: awaits full completion (persist + reschedule + reload), unlike the
+    /// fire-and-forget `setStatus` SwiftUI actions call directly.
+    public func setStatusAndWait(_ status: IntentStatus, for id: UUID) async {
+        guard var intent = intents.first(where: { $0.id == id }) else { return }
+        intent.status = status
+        intent.updatedAt = Date()
+        await applyStatus(status, to: intent)
+    }
+
+    public func updateAndWait(_ intent: CapturedIntent) async {
+        var updated = intent
+        updated.updatedAt = Date()
+        await applyUpdate(updated)
+    }
+
+    public func deleteAndWait(_ id: UUID) async {
+        await applyDelete(id)
     }
 }

@@ -46,6 +46,45 @@ Safari/Chrome, or VS Code instead. All other supported apps continue to work nor
 5. Click **Track**, then open **Intent Inbox** from the menu bar and confirm the item is under
    **OPEN** (no deadline) with the Figma link visible in the detail view.
 
+## Google Chat — sender/requester (source context)
+
+1. In an actual Google Chat conversation, select a message someone else sent you that greets you
+   by name and asks for a review, e.g.
+   `Hi @Your Name, This is the updated landing page. Please have a look and let me know any changes.`
+2. Click **Capture Intent**. Verify **ACTION**, and a **Requested by** row naming the message's
+   real sender — never the @mention inside the message body (which addresses you, the reader, not
+   who sent it).
+3. Enable **Intent debug details**, recapture, and check `/tmp/openclip.log` (or Console.app,
+   subsystem matching this build, category "selection") for `INTENTOS_SOURCE_CONTEXT` lines. They
+   show which AX role/level produced the sender/timestamp candidates, or that none were found at
+   that level — use this to calibrate `AccessibilitySourceContextResolver` if Google Chat's actual
+   AX structure doesn't match the heuristics on your first run (see the file's header comment).
+4. Confirm nothing beyond the one selected message was inspected: no other messages' text should
+   ever appear in the debug log's candidate list.
+5. WhatsApp Web runs through the exact same generic resolver (it's just another web app in a
+   supported browser) — try the same capture there. If sender detection doesn't work, that's a
+   known, documented limitation pending its own calibration, not a bug to silently paper over with
+   broader scraping.
+
+## When / reminders
+
+1. Select `Please review this.` and Capture Intent. Confirm the preview shows **When: + Add
+   deadline** (not a pre-filled date) — click it, pick **Tomorrow**, and Track.
+2. Select `Can we have a session at 5pm?` and Capture Intent. Confirm it shows **Time mentioned:
+   5:00 PM** with **[Today] [Tomorrow] [Pick date…]** chips rather than an invented date — clicking
+   **Tomorrow** should combine into "Tomorrow, 5:00 PM".
+3. Track an intent with a date-only deadline (no time). Confirm (via Notification Center's
+   scheduled-notifications view, or waiting) that exactly one reminder is scheduled for 9:00 AM
+   that day.
+4. Track an intent with a specific time. Confirm exactly one reminder is scheduled 30 minutes
+   before it.
+5. Open Intent Inbox, select that intent, change its date via the same **When** control in the
+   detail view, and confirm the row's temporal label updates and the old reminder is replaced (not
+   duplicated).
+6. Mark an intent **Done** (or delete it). Confirm its pending notification is gone.
+7. The first time you Track an intent with a reminder, confirm macOS prompts for notification
+   permission at that moment — never at app launch.
+
 ## WhatsApp Web
 
 1. Select: `Hi Rahman, can we have a session at 5pm??`

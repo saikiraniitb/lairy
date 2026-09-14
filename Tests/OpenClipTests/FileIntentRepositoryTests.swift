@@ -47,6 +47,29 @@ final class FileIntentRepositoryTests: XCTestCase {
         XCTAssertEqual(remainingIntents, [])
     }
 
+    /// Manual date + time (and requestedBy) persists across relaunch — the exact temporal-model
+    /// requirement, exercised at the persistence layer rather than just in-memory Codable.
+    func testTemporalValuesAndRequestedByPersistAcrossRepositoryInstances() async throws {
+        let fileURL = temporaryDirectory.appendingPathComponent("intents.json")
+        let due = IntentTemporalValue(date: Date(timeIntervalSince1970: 1_800_100_000), hasTime: true, sourceText: "tomorrow", provenance: .modelGrounded)
+        let intent = CapturedIntent(
+            type: .action,
+            summary: "Review the landing page",
+            requestedBy: "Sai Siddeeswara Naidu Gurram",
+            dueAt: due,
+            sourceText: "Please review this.",
+            sourceApplicationName: "Google Chat",
+            parser: "test"
+        )
+        try await repository.save(intent)
+
+        let reopened = FileIntentRepository(fileURL: fileURL)
+        let persisted = try await reopened.fetchAll()
+        XCTAssertEqual(persisted, [intent])
+        XCTAssertEqual(persisted.first?.dueAt?.provenance, .modelGrounded)
+        XCTAssertEqual(persisted.first?.requestedBy, "Sai Siddeeswara Naidu Gurram")
+    }
+
     func testDuplicateAndMissingIDsAreRejected() async throws {
         let intent = CapturedIntent(
             type: .remember,

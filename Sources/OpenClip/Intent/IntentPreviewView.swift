@@ -43,13 +43,18 @@ public struct IntentPreviewView: View {
             if model.draft.type == .remember {
                 optionalField("Subject", keyPath: \.subject)
             } else {
-                if model.isEditing || !(model.draft.deadlineText ?? "").isEmpty {
-                    optionalField("Deadline", keyPath: \.deadlineText)
+                if model.draft.type == .waiting {
+                    IntentWhenControl(value: binding(\.followUpAt), kind: .followUp, unresolvedTimeText: model.draft.unresolvedTimeText)
+                } else if model.draft.eventAt != nil {
+                    IntentWhenControl(value: binding(\.eventAt), kind: .event, unresolvedTimeText: model.draft.unresolvedTimeText)
                 } else {
-                    labeledRow("Deadline", value: "No deadline specified")
+                    IntentWhenControl(value: binding(\.dueAt), kind: .due, unresolvedTimeText: model.draft.unresolvedTimeText)
                 }
                 if model.draft.type == .waiting || model.draft.type == .request || model.draft.waitingFor != nil {
                     optionalField("Waiting for", keyPath: \.waitingFor)
+                }
+                if let requestedBy = model.draft.requestedBy, !requestedBy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    labeledRow("Requested by", value: requestedBy)
                 }
                 if model.isEditing {
                     optionalField("Subject", keyPath: \.subject)

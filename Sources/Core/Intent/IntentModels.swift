@@ -103,9 +103,23 @@ public struct IntentDraft: Codable, Equatable, Sendable {
     public var responseExpected: Bool?
     /// The outcome the user is seeking (e.g. "feedback or approval"), distinct from `action`.
     public var requestedOutcome: String?
+    /// Who asked for this action. Trusted: either `IntentSourceContext.sender` (when a trusted
+    /// sender was resolved) or a value grounded against source text — never an unverified provider
+    /// guess. See `GeminiIntentParser` and `IntentGroundingValidator`.
+    public var requestedBy: String?
     /// Deterministically extracted from `sourceText` — never provider-supplied. See
     /// `IntentResourceExtractor`.
     public var resources: [IntentResource]
+
+    /// A self-owned/action deadline (e.g. "Review this by Friday").
+    public var dueAt: IntentTemporalValue?
+    /// A scheduled event/meeting time (e.g. "Let's meet Friday at 5").
+    public var eventAt: IntentTemporalValue?
+    /// When to check back on a WAITING intent (e.g. "Check again Monday").
+    public var followUpAt: IntentTemporalValue?
+    /// A clock time was mentioned (e.g. "5pm") but no date could be resolved — never silently
+    /// paired with an invented date. The When control surfaces this so the user can resolve it.
+    public var unresolvedTimeText: String?
 
     public var sourceText: String
     public var sourceApplicationName: String?
@@ -128,7 +142,12 @@ public struct IntentDraft: Codable, Equatable, Sendable {
         waitingFor: String? = nil,
         responseExpected: Bool? = nil,
         requestedOutcome: String? = nil,
+        requestedBy: String? = nil,
         resources: [IntentResource] = [],
+        dueAt: IntentTemporalValue? = nil,
+        eventAt: IntentTemporalValue? = nil,
+        followUpAt: IntentTemporalValue? = nil,
+        unresolvedTimeText: String? = nil,
         sourceText: String,
         sourceApplicationName: String? = nil,
         sourceApplicationBundleIdentifier: String? = nil,
@@ -148,7 +167,12 @@ public struct IntentDraft: Codable, Equatable, Sendable {
         self.waitingFor = waitingFor
         self.responseExpected = responseExpected
         self.requestedOutcome = requestedOutcome
+        self.requestedBy = requestedBy
         self.resources = resources
+        self.dueAt = dueAt
+        self.eventAt = eventAt
+        self.followUpAt = followUpAt
+        self.unresolvedTimeText = unresolvedTimeText
         self.sourceText = sourceText
         self.sourceApplicationName = sourceApplicationName
         self.sourceApplicationBundleIdentifier = sourceApplicationBundleIdentifier
@@ -173,7 +197,12 @@ public struct IntentDraft: Codable, Equatable, Sendable {
         waitingFor = try container.decodeIfPresent(String.self, forKey: .waitingFor)
         responseExpected = try container.decodeIfPresent(Bool.self, forKey: .responseExpected)
         requestedOutcome = try container.decodeIfPresent(String.self, forKey: .requestedOutcome)
+        requestedBy = try container.decodeIfPresent(String.self, forKey: .requestedBy)
         resources = try container.decodeIfPresent([IntentResource].self, forKey: .resources) ?? []
+        dueAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .dueAt)
+        eventAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .eventAt)
+        followUpAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .followUpAt)
+        unresolvedTimeText = try container.decodeIfPresent(String.self, forKey: .unresolvedTimeText)
         sourceText = try container.decode(String.self, forKey: .sourceText)
         sourceApplicationName = try container.decodeIfPresent(String.self, forKey: .sourceApplicationName)
         sourceApplicationBundleIdentifier = try container.decodeIfPresent(String.self, forKey: .sourceApplicationBundleIdentifier)
@@ -200,7 +229,13 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
     public var waitingFor: String?
     public var responseExpected: Bool?
     public var requestedOutcome: String?
+    public var requestedBy: String?
     public var resources: [IntentResource]
+
+    public var dueAt: IntentTemporalValue?
+    public var eventAt: IntentTemporalValue?
+    public var followUpAt: IntentTemporalValue?
+    public var unresolvedTimeText: String?
 
     public var sourceText: String
     public var sourceApplicationName: String?
@@ -228,7 +263,12 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         waitingFor: String? = nil,
         responseExpected: Bool? = nil,
         requestedOutcome: String? = nil,
+        requestedBy: String? = nil,
         resources: [IntentResource] = [],
+        dueAt: IntentTemporalValue? = nil,
+        eventAt: IntentTemporalValue? = nil,
+        followUpAt: IntentTemporalValue? = nil,
+        unresolvedTimeText: String? = nil,
         sourceText: String,
         sourceApplicationName: String? = nil,
         sourceApplicationBundleIdentifier: String? = nil,
@@ -252,7 +292,12 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         self.waitingFor = waitingFor
         self.responseExpected = responseExpected
         self.requestedOutcome = requestedOutcome
+        self.requestedBy = requestedBy
         self.resources = resources
+        self.dueAt = dueAt
+        self.eventAt = eventAt
+        self.followUpAt = followUpAt
+        self.unresolvedTimeText = unresolvedTimeText
         self.sourceText = sourceText
         self.sourceApplicationName = sourceApplicationName
         self.sourceApplicationBundleIdentifier = sourceApplicationBundleIdentifier
@@ -278,7 +323,12 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
             waitingFor: draft.waitingFor,
             responseExpected: draft.responseExpected,
             requestedOutcome: draft.requestedOutcome,
+            requestedBy: draft.requestedBy,
             resources: draft.resources,
+            dueAt: draft.dueAt,
+            eventAt: draft.eventAt,
+            followUpAt: draft.followUpAt,
+            unresolvedTimeText: draft.unresolvedTimeText,
             sourceText: draft.sourceText,
             sourceApplicationName: draft.sourceApplicationName,
             sourceApplicationBundleIdentifier: draft.sourceApplicationBundleIdentifier,
@@ -291,7 +341,8 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
     }
 
     /// Tolerates records written before `waitingFor`/`responseExpected`/`requestedOutcome`/
-    /// `resources`/`IntentStatus.waiting` existed: missing keys default to nil/empty.
+    /// `requestedBy`/`resources`/`dueAt`/`eventAt`/`followUpAt`/`unresolvedTimeText`/
+    /// `IntentStatus.waiting` existed: missing keys default to nil/empty.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -308,7 +359,12 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         waitingFor = try container.decodeIfPresent(String.self, forKey: .waitingFor)
         responseExpected = try container.decodeIfPresent(Bool.self, forKey: .responseExpected)
         requestedOutcome = try container.decodeIfPresent(String.self, forKey: .requestedOutcome)
+        requestedBy = try container.decodeIfPresent(String.self, forKey: .requestedBy)
         resources = try container.decodeIfPresent([IntentResource].self, forKey: .resources) ?? []
+        dueAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .dueAt)
+        eventAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .eventAt)
+        followUpAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .followUpAt)
+        unresolvedTimeText = try container.decodeIfPresent(String.self, forKey: .unresolvedTimeText)
         sourceText = try container.decode(String.self, forKey: .sourceText)
         sourceApplicationName = try container.decodeIfPresent(String.self, forKey: .sourceApplicationName)
         sourceApplicationBundleIdentifier = try container.decodeIfPresent(String.self, forKey: .sourceApplicationBundleIdentifier)

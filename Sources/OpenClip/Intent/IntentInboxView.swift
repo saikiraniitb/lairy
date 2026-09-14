@@ -73,7 +73,7 @@ public struct IntentInboxView: View {
                         }
                         if group == .remember {
                             EmptyView()
-                        } else if let context = intent.waitingFor.map({ "Waiting for \($0)" }) ?? intent.deadlineText ?? intent.trigger {
+                        } else if let context = rowTemporalLabel(for: intent) ?? intent.waitingFor.map({ "Waiting for \($0)" }) ?? intent.trigger {
                             Text(context)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -93,6 +93,36 @@ public struct IntentInboxView: View {
                 }
             }
         }
+    }
+
+    /// Human-readable temporal metadata for a row, never an internal date representation.
+    private func rowTemporalLabel(for intent: CapturedIntent) -> String? {
+        if let followUp = intent.followUpAt {
+            return "Follow up \(dayLabel(followUp.date))"
+        }
+        if let event = intent.eventAt {
+            return event.hasTime ? "\(dayLabel(event.date)), \(timeLabel(event.date))" : dayLabel(event.date)
+        }
+        if let due = intent.dueAt {
+            return due.hasTime ? "\(dayLabel(due.date)), \(timeLabel(due.date))" : dayLabel(due.date)
+        }
+        return nil
+    }
+
+    private func dayLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return String(localized: "Today") }
+        if calendar.isDateInTomorrow(date) { return String(localized: "Tomorrow") }
+        let formatter = DateFormatter()
+        formatter.dateFormat = calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) ? "EEEE" : "EEE, MMM d"
+        return formatter.string(from: date)
+    }
+
+    private func timeLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     private func rowSymbol(for intent: CapturedIntent, group: IntentInboxGroup) -> String {
@@ -115,6 +145,15 @@ public struct IntentInboxView: View {
                     Menu(intent.status.rawValue.capitalized) { statusMenu(intent) }
                 }
                 Text(intent.summary).font(.title2.bold()).textSelection(.enabled)
+
+                if intent.type == .waiting {
+                    IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.followUpAt), kind: .followUp, unresolvedTimeText: intent.unresolvedTimeText)
+                } else if intent.eventAt != nil {
+                    IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.eventAt), kind: .event, unresolvedTimeText: intent.unresolvedTimeText)
+                } else if intent.type != .remember {
+                    IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.dueAt), kind: .due, unresolvedTimeText: intent.unresolvedTimeText)
+                }
+
                 metadata(intent)
 
                 if !intent.resources.isEmpty {
@@ -161,13 +200,27 @@ public struct IntentInboxView: View {
     @ViewBuilder
     private func metadata(_ intent: CapturedIntent) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
+            metadataRow("Requested by", intent.requestedBy)
             metadataRow("To", intent.target)
-            metadataRow("Deadline", intent.deadlineText ?? (intent.type == .remember ? nil : "No deadline specified"))
             metadataRow("Waiting for", intent.waitingFor)
             metadataRow("Trigger", intent.trigger)
             metadataRow("Requested outcome", intent.requestedOutcome)
             metadataRow("Subject", intent.subject)
         }
+    }
+
+    private func temporalBinding(
+        for intent: CapturedIntent,
+        keyPath: WritableKeyPath<CapturedIntent, IntentTemporalValue?>
+    ) -> Binding<IntentTemporalValue?> {
+        Binding(
+            get: { intent[keyPath: keyPath] },
+            set: { newValue in
+                var updated = intent
+                updated[keyPath: keyPath] = newValue
+                store.update(updated)
+            }
+        )
     }
 
     @ViewBuilder
