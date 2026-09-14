@@ -23,6 +23,13 @@ struct GeneralTab: View {
     @State private var intentConfidenceThreshold: Double
     @State private var intentCloudFallbackEnabled: Bool
     @State private var intentDebugModeEnabled: Bool
+    @State private var intentIntelligenceEngineRaw: String
+    @State private var intentGeminiModel: String
+    @State private var geminiAPIKeyInput: String
+    @State private var geminiModelIsCustom: Bool
+    @State private var isTestingGeminiConnection = false
+    @State private var geminiConnectionMessage: String?
+    @State private var geminiConnectionSucceeded = false
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     @ObservedObject private var permissionManager = PermissionManager.shared
 
@@ -35,6 +42,11 @@ struct GeneralTab: View {
         _intentConfidenceThreshold = State(initialValue: DefaultSettingsStore.shared.get(.intentConfidenceThreshold))
         _intentCloudFallbackEnabled = State(initialValue: DefaultSettingsStore.shared.get(.intentCloudFallbackEnabled))
         _intentDebugModeEnabled = State(initialValue: DefaultSettingsStore.shared.get(.intentDebugModeEnabled))
+        _intentIntelligenceEngineRaw = State(initialValue: DefaultSettingsStore.shared.get(.intentIntelligenceEngine))
+        let storedModel = DefaultSettingsStore.shared.get(.intentGeminiModel)
+        _intentGeminiModel = State(initialValue: storedModel)
+        _geminiModelIsCustom = State(initialValue: !GeminiSettings.modelPresets.contains(storedModel))
+        _geminiAPIKeyInput = State(initialValue: SecretStore.get(account: GeminiSettings.apiKeyAccount) ?? "")
     }
     
     var body: some View {
@@ -150,6 +162,96 @@ struct GeneralTab: View {
                 }
             }
 
+            Section("Intent Intelligence") {
+                Picker("Intelligence Engine", selection: $intentIntelligenceEngineRaw) {
+                    ForEach(IntentIntelligenceEngine.allCases, id: \.rawValue) { engine in
+                        Text(engine.displayName).tag(engine.rawValue)
+                    }
+                }
+                .onChange(of: intentIntelligenceEngineRaw) { _, value in
+                    DefaultSettingsStore.shared.set(.intentIntelligenceEngine, value: value)
+                }
+
+                let engine = IntentIntelligenceEngine(settingValue: intentIntelligenceEngineRaw)
+                Text(engine == .gemini
+                     ? "Only text you explicitly capture with Capture Intent is sent to Gemini for interpretation."
+                     : "Needle runs fully on this Mac. No text ever leaves your device.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if engine == .gemini {
+                    SettingsRow(
+                        title: "Gemini API Key",
+                        subtitle: "Stored locally in ~/.openclip/secrets.json, never logged, never committed.",
+                        systemImage: "key"
+                    ) {
+                        HStack {
+                            SecureField("Gemini API Key", text: $geminiAPIKeyInput)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                            Button("Save") {
+                                _ = SecretStore.set(geminiAPIKeyInput, account: GeminiSettings.apiKeyAccount)
+                                geminiConnectionMessage = nil
+                            }
+                            .disabled(geminiAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            Button("Remove Key", role: .destructive) {
+                                _ = SecretStore.delete(account: GeminiSettings.apiKeyAccount)
+                                geminiAPIKeyInput = ""
+                                geminiConnectionMessage = nil
+                            }
+                            .disabled(geminiAPIKeyInput.isEmpty)
+                        }
+                    }
+
+                    SettingsRow(
+                        title: "Model",
+                        subtitle: "The current stable Flash-class Gemini model. Editable if Google renames it.",
+                        systemImage: "cpu"
+                    ) {
+                        HStack {
+                            Picker("", selection: Binding(
+                                get: { geminiModelIsCustom ? "custom" : intentGeminiModel },
+                                set: { newValue in
+                                    if newValue == "custom" {
+                                        geminiModelIsCustom = true
+                                    } else {
+                                        geminiModelIsCustom = false
+                                        intentGeminiModel = newValue
+                                        DefaultSettingsStore.shared.set(.intentGeminiModel, value: newValue)
+                                    }
+                                }
+                            )) {
+                                ForEach(GeminiSettings.modelPresets, id: \.self) { model in
+                                    Text(model).tag(model)
+                                }
+                                Text("Custom…").tag("custom")
+                            }
+                            .labelsHidden()
+                            .frame(width: 200)
+
+                            if geminiModelIsCustom {
+                                TextField("Model identifier", text: $intentGeminiModel, prompt: Text("e.g. gemini-3.8-flash"))
+                                    .textFieldStyle(.roundedBorder)
+                                    .onChange(of: intentGeminiModel) { _, value in
+                                        DefaultSettingsStore.shared.set(.intentGeminiModel, value: value)
+                                    }
+                            }
+                        }
+                    }
+
+                    SettingsRow(
+                        title: "Test Connection",
+                        subtitle: LocalizedStringKey(geminiConnectionMessage ?? "Verify the key and model above can reach Gemini."),
+                        systemImage: geminiConnectionSucceeded ? "checkmark.circle.fill" : "network"
+                    ) {
+                        Button(isTestingGeminiConnection ? "Testing…" : "Test Connection") {
+                            testGeminiConnection()
+                        }
+                        .disabled(isTestingGeminiConnection || geminiAPIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+
             Section("IntentOS Developer") {
                 SettingsRow(
                     title: "Needle confidence threshold",
@@ -192,6 +294,27 @@ struct GeneralTab: View {
         .formStyle(.grouped)
         .onAppear { permissionManager.startMonitoring() }
         .onDisappear { permissionManager.stopMonitoring() }
+    }
+
+    private func testGeminiConnection() {
+        // Save first so Test Connection always exercises what's actually stored, not a stale
+        // in-memory value from before the user typed.
+        _ = SecretStore.set(geminiAPIKeyInput, account: GeminiSettings.apiKeyAccount)
+        isTestingGeminiConnection = true
+        geminiConnectionMessage = nil
+        geminiConnectionSucceeded = false
+        let parser = GeminiIntentParser()
+        Task { @MainActor in
+            do {
+                try await parser.testConnection()
+                geminiConnectionSucceeded = true
+                geminiConnectionMessage = "Connected."
+            } catch {
+                geminiConnectionSucceeded = false
+                geminiConnectionMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            isTestingGeminiConnection = false
+        }
     }
 
     /// Both click rows offer the same three outcomes, at a width that fits the

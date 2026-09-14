@@ -141,6 +141,14 @@ public extension SettingKey where Value == String {
 
     /// Per-action option value key. The key name matches the legacy `action.<id>.option.<optID>`
     /// convention so existing stored values migrate over with zero data changes.
+    /// Which provider powers Intent Intelligence: "gemini" (default, cloud) or "needle"
+    /// (experimental, local). See `IntentIntelligenceEngine`.
+    static var intentIntelligenceEngine: SettingKey<String> { SettingKey<String>("intent.intelligenceEngine", defaultValue: "gemini") }
+    /// Gemini model id used for Intent Intelligence — the current stable Flash-class model as of
+    /// this build. User-editable in Preferences → IntentOS → Gemini Model so a future Gemini
+    /// rename never requires a code change.
+    static var intentGeminiModel: SettingKey<String> { SettingKey<String>("intent.geminiModel", defaultValue: "gemini-3.8-flash") }
+
     static func actionOption(actionID: String, optionID: String, default defaultValue: String = "") -> SettingKey<String> {
         SettingKey<String>("action.\(actionID).option.\(optionID)", defaultValue: defaultValue)
     }

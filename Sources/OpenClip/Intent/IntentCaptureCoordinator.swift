@@ -1,17 +1,52 @@
 import Foundation
 import Core
 
+/// Which provider powers Intent Intelligence. Gemini Cloud is the V1 default; Needle Local
+/// remains available as an explicit, clearly-labeled experimental choice (see
+/// `SettingKey.intentIntelligenceEngine`, Preferences → IntentOS → Intelligence Engine).
+public enum IntentIntelligenceEngine: String, CaseIterable, Sendable {
+    case gemini
+    case needle
+
+    public init(settingValue: String) {
+        self = IntentIntelligenceEngine(rawValue: settingValue) ?? .gemini
+    }
+
+    public var displayName: String {
+        switch self {
+        case .gemini: return String(localized: "Gemini Cloud (Recommended)")
+        case .needle: return String(localized: "Needle Local (Experimental)")
+        }
+    }
+}
+
 @MainActor
 public final class IntentCaptureCoordinator: Sendable {
     public static let shared: IntentCaptureCoordinator = {
         let settings = DefaultSettingsStore.shared
         return IntentCaptureCoordinator(
-            parser: NeedleIntentParser(confidenceThreshold: settings.get(.intentConfidenceThreshold)),
-            cloudParser: CloudIntentParser(),
+            parser: IntentCaptureCoordinator.makeParser(
+                engine: IntentIntelligenceEngine(settingValue: settings.get(.intentIntelligenceEngine)),
+                settings: settings
+            ),
+            // The manual "Try Cloud AI" escape hatch only makes sense for the local Needle path —
+            // Gemini is already the primary cloud parser, so it has nothing to fall back to.
+            cloudParser: IntentIntelligenceEngine(settingValue: settings.get(.intentIntelligenceEngine)) == .needle
+                ? CloudIntentParser()
+                : nil,
             repository: FileIntentRepository.shared,
             settingsStore: settings
         )
     }()
+
+    private static func makeParser(engine: IntentIntelligenceEngine, settings: any SettingsStore) -> any IntentParsing {
+        switch engine {
+        case .gemini:
+            return GeminiIntentParser()
+        case .needle:
+            return NeedleIntentParser(confidenceThreshold: settings.get(.intentConfidenceThreshold))
+        }
+    }
 
     private let parser: any IntentParsing
     private let cloudParser: (any IntentParsing)?
@@ -45,7 +80,14 @@ public final class IntentCaptureCoordinator: Sendable {
             sourceApplicationBundleIdentifier: selection.sourceApp.bundleIdentifier,
             currentDate: Date()
         )
-        let result = try await parser.parseIntent(from: selection.text, context: context)
+        let result: IntentParseResult
+        do {
+            result = try await parser.parseIntent(from: selection.text, context: context)
+        } catch let error as GeminiIntentParserError {
+            // Never create an intent from a failed/unreachable provider: no key, a bad
+            // connection, and an unreadable response are all reported and dropped, never saved.
+            return .toast(StatusFeedback(message: error.errorDescription ?? error.localizedDescription, style: .error))
+        }
 
         switch result {
         case .noIntent(let diagnostics):
@@ -129,7 +171,7 @@ public final class IntentCaptureCoordinator: Sendable {
         diagnostics: IntentParserDiagnostics?
     ) -> IntentDraft {
         IntentDraft(
-            type: .doAction,
+            type: .action,
             summary: selection.text.trimmingCharacters(in: .whitespacesAndNewlines),
             sourceText: selection.text,
             sourceApplicationName: selection.sourceApp.localizedName,
