@@ -1,3 +1,21 @@
+# IntentOS Experimental Fork
+
+IntentOS explores a local-first interaction model where explicitly selected natural-language intent is converted into structured persistent commitments.
+
+V0 uses explicit user invocation.
+
+IntentOS does not continuously monitor typing or screen content.
+
+Intent parsing is performed locally by default.
+
+OpenClip provides portions of the macOS interaction foundation and remains credited according to its license.
+
+Needle/Cactus components remain credited according to their respective licenses.
+
+This branch is an experimental fork. The upstream OpenClip README follows.
+
+---
+
 <div align="center">
 
 <img src="./assets/app-icon.png" alt="OpenClip icon" align="center" width="96" height="96" />
@@ -203,4 +221,3 @@ OpenClip is released under the [MIT License](LICENSE). Copyright (c) 2026 Ganesh
 ## Legal & Trademark Notice
 
 PopClip is a registered trademark of Nicholas Moore / Pilotmoon Software. OpenClip is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Nicholas Moore or Pilotmoon Software. All other trademarks, product names, and company names or logos cited herein are the property of their respective owners.
-

@@ -5,6 +5,13 @@ superpowers/
 .superpowers/
 .build/
 .DS_Store
+
+# IntentOS local-model spike/runtime artifacts
+tools/needle-spike/.venv/
+tools/needle-spike/.cache/
+tools/needle-spike/runtime/
+tools/needle-spike/*.whl
+tools/needle-spike/__pycache__/
 xcuserdata/
 build/
 *.profraw
