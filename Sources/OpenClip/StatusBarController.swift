@@ -163,6 +163,13 @@ class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         // Section 2: Core App Navigation
+        let inboxItem = menuItem(
+            title: String(localized: "Intent Inbox…"),
+            action: #selector(showIntentInbox),
+            iconName: "tray.full"
+        )
+        menu.addItem(inboxItem)
+
         let prefsItem = menuItem(title: String(localized: "Settings…"), action: #selector(showPreferences), keyEquivalent: ",")
         menu.addItem(prefsItem)
 
@@ -237,6 +244,10 @@ class StatusBarController: NSObject, NSMenuDelegate {
         settingsStore.set(.isAppEnabled, value: newStatus)
         updateStatusItem(isEnabled: newStatus)
         notificationCenter.post(name: .openClipEnabledStateChanged, object: newStatus)
+    }
+
+    @objc private func showIntentInbox() {
+        IntentInboxWindowController.shared.show()
     }
 
     // MARK: - NSMenuDelegate
