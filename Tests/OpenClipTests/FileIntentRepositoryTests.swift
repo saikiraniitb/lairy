@@ -33,15 +33,18 @@ final class FileIntentRepositoryTests: XCTestCase {
         try await repository.save(intent)
 
         let reopened = FileIntentRepository(fileURL: fileURL)
-        XCTAssertEqual(try await reopened.fetchAll(), [intent])
+        let initiallyPersisted = try await reopened.fetchAll()
+        XCTAssertEqual(initiallyPersisted, [intent])
 
         intent.status = .done
         intent.updatedAt = intent.updatedAt.addingTimeInterval(10)
         try await reopened.update(intent)
-        XCTAssertEqual(try await repository.fetchAll().first?.status, .done)
+        let updatedIntents = try await repository.fetchAll()
+        XCTAssertEqual(updatedIntents.first?.status, .done)
 
         try await repository.delete(id: intent.id)
-        XCTAssertEqual(try await reopened.fetchAll(), [])
+        let remainingIntents = try await reopened.fetchAll()
+        XCTAssertEqual(remainingIntents, [])
     }
 
     func testDuplicateAndMissingIDsAreRejected() async throws {
@@ -60,6 +63,25 @@ final class FileIntentRepositoryTests: XCTestCase {
                 return XCTFail("Expected intentNotFound, got \(error)")
             }
         }
+    }
+
+    func testReadsLegacyISO8601Dates() async throws {
+        let fileURL = temporaryDirectory.appendingPathComponent("intents.json")
+        let intent = CapturedIntent(
+            type: .remember,
+            summary: "Acme prefers annual contracts",
+            sourceText: "Remember that Acme prefers annual contracts.",
+            parser: "test",
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_100)
+        )
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        let legacyEncoder = JSONEncoder()
+        legacyEncoder.dateEncodingStrategy = .iso8601
+        try legacyEncoder.encode([intent]).write(to: fileURL)
+
+        let persisted = try await repository.fetchAll()
+        XCTAssertEqual(persisted, [intent])
     }
 }
 

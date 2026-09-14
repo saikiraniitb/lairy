@@ -31,6 +31,7 @@ final class IntentDomainTests: XCTestCase {
     func testDeadlineResolverPreservesAmbiguity() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Kolkata"))
+        calendar.locale = Locale(identifier: "hi_IN")
         let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 14)))
 
         XCTAssertNil(IntentDeadlineResolver.resolve("next week", relativeTo: now, calendar: calendar))

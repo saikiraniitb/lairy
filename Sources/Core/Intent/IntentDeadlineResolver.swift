@@ -23,15 +23,11 @@ public enum IntentDeadlineResolver {
             return calendar.date(byAdding: .day, value: 1, to: start)
         }
 
-        let weekdayNames = calendar.weekdaySymbols.map { $0.lowercased() }
-        let shortWeekdayNames = calendar.shortWeekdaySymbols.map { $0.lowercased() }
         let components = phrase.split(separator: " ").map(String.init)
         let isExplicitNext = components.first == "next"
         let weekdayPhrase = isExplicitNext ? components.dropFirst().first : components.first
         if components.count <= 2, let weekdayPhrase,
-           let zeroBasedWeekday = weekdayNames.firstIndex(of: weekdayPhrase)
-            ?? shortWeekdayNames.firstIndex(of: weekdayPhrase) {
-            let wantedWeekday = zeroBasedWeekday + 1
+           let wantedWeekday = englishWeekdays[weekdayPhrase] {
             let currentWeekday = calendar.component(.weekday, from: start)
             var delta = (wantedWeekday - currentWeekday + 7) % 7
             if delta == 0 {
@@ -52,4 +48,14 @@ public enum IntentDeadlineResolver {
 
         return nil
     }
+
+    private static let englishWeekdays: [String: Int] = [
+        "sunday": 1, "sun": 1,
+        "monday": 2, "mon": 2,
+        "tuesday": 3, "tue": 3, "tues": 3,
+        "wednesday": 4, "wed": 4,
+        "thursday": 5, "thu": 5, "thur": 5, "thurs": 5,
+        "friday": 6, "fri": 6,
+        "saturday": 7, "sat": 7
+    ]
 }
