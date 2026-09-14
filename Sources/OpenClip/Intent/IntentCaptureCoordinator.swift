@@ -1,39 +1,16 @@
 import Foundation
 import Core
 
-/// Which provider powers Intent Intelligence. Gemini Cloud is the V1 default; Needle Local
-/// remains available as an explicit, clearly-labeled experimental choice (see
-/// `SettingKey.intentIntelligenceEngine`, Preferences → IntentOS → Intelligence Engine).
-public enum IntentIntelligenceEngine: String, CaseIterable, Sendable {
-    case gemini
-    case needle
-
-    public init(settingValue: String) {
-        self = IntentIntelligenceEngine(rawValue: settingValue) ?? .gemini
-    }
-
-    public var displayName: String {
-        switch self {
-        case .gemini: return String(localized: "Gemini Cloud (Recommended)")
-        case .needle: return String(localized: "Needle Local (Experimental)")
-        }
-    }
-}
-
 @MainActor
 public final class IntentCaptureCoordinator: Sendable {
     public static let shared: IntentCaptureCoordinator = {
         let settings = DefaultSettingsStore.shared
+        let engine = IntentIntelligenceConfiguration.resolveEngine()
         return IntentCaptureCoordinator(
-            parser: IntentCaptureCoordinator.makeParser(
-                engine: IntentIntelligenceEngine(settingValue: settings.get(.intentIntelligenceEngine)),
-                settings: settings
-            ),
+            parser: IntentCaptureCoordinator.makeParser(engine: engine, settings: settings),
             // The manual "Try Cloud AI" escape hatch only makes sense for the local Needle path —
             // Gemini is already the primary cloud parser, so it has nothing to fall back to.
-            cloudParser: IntentIntelligenceEngine(settingValue: settings.get(.intentIntelligenceEngine)) == .needle
-                ? CloudIntentParser()
-                : nil,
+            cloudParser: engine == .needle ? CloudIntentParser() : nil,
             repository: FileIntentRepository.shared,
             settingsStore: settings
         )
@@ -86,7 +63,13 @@ public final class IntentCaptureCoordinator: Sendable {
         } catch let error as GeminiIntentParserError {
             // Never create an intent from a failed/unreachable provider: no key, a bad
             // connection, and an unreadable response are all reported and dropped, never saved.
-            return .toast(StatusFeedback(message: error.errorDescription ?? error.localizedDescription, style: .error))
+            // Normal product copy never names the provider; DEBUG builds show the real reason.
+            #if DEBUG
+            let message = error.errorDescription ?? error.productMessage
+            #else
+            let message = error.productMessage
+            #endif
+            return .toast(StatusFeedback(message: message, style: .error))
         }
 
         switch result {

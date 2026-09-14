@@ -2,17 +2,30 @@
 
 ## Prerequisites
 
+IntentOS owns the intelligence layer — there is no Preferences UI to pick a provider, a model, or
+enter an API key. Intent Intelligence is Gemini by default, configured entirely through the
+environment:
+
 1. Install full Xcode 16 or newer and select it in Xcode settings or with `xcode-select`.
-2. Run `./scripts/dev_run.sh` from the repository root.
-3. Grant the built app Accessibility permission in **System Settings → Privacy & Security → Accessibility**.
-4. Open **Preferences → General → Intent Intelligence**, leave **Intelligence Engine** on **Gemini
-   Cloud (Recommended)**, paste a Gemini API key, click **Save**, then **Test Connection** to
-   confirm it can reach the API before testing capture below.
-5. (Optional, for the local/experimental path) From `tools/needle-spike`, create `.venv`, install
-   `requirements.txt`, and fetch generation 2 as shown in that directory's README, then switch
-   **Intelligence Engine** to **Needle Local (Experimental)** and keep **Needle confidence
-   threshold** at 0.75 — the measured base model will normally show these cases as uncertain; use
-   **Edit Manually** to correct them.
+2. Get a Gemini API key and set it in your shell, then run the dev script from that same shell:
+   ```bash
+   export GEMINI_API_KEY="..."
+   ./scripts/dev_run.sh
+   ```
+   The script never stores or hardcodes this value — it only checks whether it's set and reports
+   that (without printing it) before launching. Running `./scripts/dev_run.sh` in a shell where
+   `GEMINI_API_KEY` was never exported launches IntentOS with Intent Intelligence disabled (see
+   the "not configured" case below).
+3. **From Xcode instead:** Product menu → Scheme → Edit Scheme… → **Run** → **Arguments** tab →
+   **Environment Variables** → add `GEMINI_API_KEY` with your key. Never commit a real value here —
+   scheme edits with a real key belong in your local, uncommitted scheme state only.
+4. Grant the built app Accessibility permission in **System Settings → Privacy & Security → Accessibility**.
+5. (Developer/research path only — never exposed to normal users) To exercise Needle instead of
+   Gemini, set `INTENTOS_INTELLIGENCE_PROVIDER=needle` alongside the above (DEBUG builds only).
+   From `tools/needle-spike`, create `.venv`, install `requirements.txt`, and fetch generation 2 as
+   shown in that directory's README. Keep **Needle confidence threshold** at 0.75 in Preferences →
+   General → IntentOS Developer — the measured base model will normally show these cases as
+   uncertain; use **Edit Manually** to correct them.
 
 ## Known V1 limitation: Apple Notes
 
@@ -26,7 +39,7 @@ Safari/Chrome, or VS Code instead. All other supported apps continue to work nor
 1. Select a message like:
    `Please review this flow and let me know if any changes are needed. https://www.figma.com/design/example`
 2. In the OpenClip-style popup, click **Capture Intent**.
-3. Confirm a brief "Understanding intent locally…"-style loading state, then the preview appears.
+3. Confirm a brief "Understanding intent…" loading state (never naming a provider), then the preview appears.
 4. Verify: **ACTION**, a "Next action" summarizing the review request, **no deadline** shown
    (unless the source actually contained one), and an **Open Figma** resource link pointing at the
    real URL from the message. Confirm no invented name, date, or company appears anywhere.
@@ -68,13 +81,18 @@ Safari/Chrome, or VS Code instead. All other supported apps continue to work nor
    confirm **GROUNDING EVIDENCE** / **FIELDS REMOVED BY VALIDATOR** are visible and never show the
    API key.
 
-## Privacy checks
+## Privacy and product-copy checks
 
 1. Invoke the global popup with clipboard text but no live selection. Confirm Capture Intent is not available.
-2. With no Gemini API key configured, Capture Intent on any text. Confirm the message
-   **"Connect Gemini to use Intent Intelligence."** appears and nothing is saved.
-3. Confirm the Preferences note reads "Only text you explicitly capture is sent to Gemini for
-   interpretation." when Gemini is the active engine, and "No text ever leaves your device." when
-   Needle is selected.
-4. Enable Intent debug details to inspect/copy source and raw parser data. Disable it to hide those
-   explicit debug surfaces. Routine `metrics.jsonl` must contain no source text.
+2. Run `./scripts/dev_run.sh` from a shell where `GEMINI_API_KEY` is **not** set. Capture Intent on
+   any text. Confirm the message **"Intent Intelligence is not configured."** appears and nothing
+   is saved — and that it never names "Gemini" (compare against a DEBUG build, where the same
+   failure shows the real reason, e.g. "Gemini API key not found...").
+3. With Intent debug details **off**, confirm nothing in the normal preview or Inbox UI (footer,
+   detail view) ever shows a parser name or model id — only in Debug mode.
+4. Force a network failure (e.g. temporarily break connectivity) and confirm the message is
+   **"Intent Intelligence is temporarily unavailable."**, never "Gemini API failed" or similar.
+5. Enable Intent debug details to inspect/copy source and raw parser data (Provider, Model,
+   latency, raw structured output, grounding evidence — never an API key or request headers).
+   Disable it to hide those explicit debug surfaces. Routine `metrics.jsonl` must contain no
+   source text.

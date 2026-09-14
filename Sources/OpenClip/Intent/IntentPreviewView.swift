@@ -85,9 +85,11 @@ public struct IntentPreviewView: View {
             }
 
             HStack {
-                Text(parserFooter)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if debugMode {
+                    Text(parserFooter)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Ignore", action: model.ignore)
                     .keyboardShortcut(.cancelAction)

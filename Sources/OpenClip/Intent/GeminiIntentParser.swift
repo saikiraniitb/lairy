@@ -1,9 +1,11 @@
 // GeminiIntentParser.swift
 // OpenClip
 //
-// Default V1 Intent Intelligence provider. Conforms to the provider-neutral `IntentParsing`
-// abstraction — nothing outside this file (and its Preferences UI) may reference Gemini directly;
-// `IntentCaptureCoordinator` only ever sees `any IntentParsing`.
+// Production/default V1 Intent Intelligence provider. Conforms to the provider-neutral
+// `IntentParsing` abstraction — nothing outside this file references Gemini directly;
+// `IntentCaptureCoordinator` only ever sees `any IntentParsing`. Which provider and model are
+// active is an internal IntentOS decision (`IntentIntelligenceConfiguration`), never a user
+// choice — see docs/intentos/intelligence-deployment.md.
 //
 // Deliberately NOT built on the shared `AIProvider`/`CloudAPIProvider` streaming-text abstraction
 // (used by the AI Tools feature and the legacy `CloudIntentParser`): structured output needs its
@@ -12,42 +14,45 @@
 import Foundation
 import Core
 
-/// Where the Gemini Intent Intelligence API key lives in `SecretStore` — a dedicated account,
-/// distinct from the general AI Tools feature's `aiCloudAPIKey`, since they may target different
-/// providers and users may want them configured independently.
-public enum GeminiSettings {
-    public static let apiKeyAccount = "intentGeminiAPIKey"
-
-    /// Presets shown in the Preferences model picker. Not exhaustive — "Custom…" lets a user type
-    /// any model id, so a future Gemini release never requires a code change to use.
-    public static let modelPresets = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash-lite"]
-}
-
+/// Product-facing vs. developer-facing copy for a failed Intent Intelligence call. Normal UI must
+/// never name the provider or expose implementation details (`productMessage`); DEBUG builds show
+/// the real reason (`errorDescription`) to make development useful.
 public enum GeminiIntentParserError: LocalizedError, Sendable, Equatable {
     case missingAPIKey
     case invalidResponse
     case httpStatus(Int, String?)
     case timedOut
 
+    /// Normal, non-DEBUG product copy. Never names "Gemini" or exposes HTTP/network detail.
+    public var productMessage: String {
+        switch self {
+        case .missingAPIKey:
+            return String(localized: "Intent Intelligence is not configured.")
+        case .invalidResponse, .httpStatus, .timedOut:
+            return String(localized: "Intent Intelligence is temporarily unavailable.")
+        }
+    }
+
+    /// Developer-facing detail — surfaced only in DEBUG builds (see `IntentCaptureCoordinator`).
     public var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return String(localized: "Connect Gemini to use Intent Intelligence.")
+            return "Gemini API key not found. Set \(IntentIntelligenceConfiguration.geminiAPIKeyEnvironmentVariable) in the environment (see docs/intentos/intelligence-deployment.md)."
         case .invalidResponse:
-            return String(localized: "Gemini returned an unreadable response.")
+            return "Gemini returned an unreadable response."
         case .httpStatus(let code, let body):
             if let body, !body.isEmpty {
-                return String(localized: "Gemini connection failed (HTTP \(code)): \(body)")
+                return "Gemini request failed (HTTP \(code)): \(body)"
             }
-            return String(localized: "Gemini connection failed (HTTP \(code)).")
+            return "Gemini request failed (HTTP \(code))."
         case .timedOut:
-            return String(localized: "Intent Intelligence is temporarily unavailable.")
+            return "Gemini request timed out."
         }
     }
 }
 
-/// Minimal transport seam so tests (and the "Test Connection" button) can exercise request
-/// building/response parsing without always hitting the real network.
+/// Minimal transport seam so tests can exercise request building/response parsing without
+/// hitting the real network.
 public protocol GeminiTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
@@ -71,8 +76,8 @@ public actor GeminiIntentParser: IntentParsing {
     private let timeout: TimeInterval
 
     public init(
-        apiKeyProvider: @escaping @Sendable () -> String? = { SecretStore.get(account: GeminiSettings.apiKeyAccount) },
-        modelProvider: @escaping @Sendable () -> String = { DefaultSettingsStore.shared.get(.intentGeminiModel) },
+        apiKeyProvider: @escaping @Sendable () -> String? = { IntentIntelligenceConfiguration.geminiAPIKey() },
+        modelProvider: @escaping @Sendable () -> String = { IntentIntelligenceConfiguration.defaultGeminiModel },
         transport: any GeminiTransport = URLSessionGeminiTransport(),
         baseURL: String = "https://generativelanguage.googleapis.com/v1beta",
         timeout: TimeInterval = 20
@@ -140,15 +145,6 @@ public actor GeminiIntentParser: IntentParsing {
             return .uncertain(draft, confidence: confidence, diagnostics: diagnostics)
         }
         return .intent(draft)
-    }
-
-    /// Lightweight round-trip used by the Preferences "Test Connection" button: exercises the real
-    /// endpoint/key/model with a trivial prompt and surfaces a human-readable failure reason.
-    public func testConnection() async throws {
-        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
-            throw GeminiIntentParserError.missingAPIKey
-        }
-        _ = try await requestUnderstanding(source: "Please review this tomorrow.", apiKey: apiKey, model: modelProvider())
     }
 
     // MARK: - Networking

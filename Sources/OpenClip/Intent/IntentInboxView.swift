@@ -40,7 +40,7 @@ public struct IntentInboxView: View {
                     ContentUnavailableView(
                         "Select an intent",
                         systemImage: "scope",
-                        description: Text("Inspect its original selected text and local parser metadata.")
+                        description: Text("Inspect its original selected text and metadata.")
                     )
                 }
             }

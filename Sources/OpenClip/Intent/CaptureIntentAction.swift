@@ -8,7 +8,7 @@ public struct CaptureIntentAction: Action, Sendable {
     public let chrome = ActionChrome(
         requiresLiveSelection: true,
         showsLoading: true,
-        loadingMessage: String(localized: "Understanding intent locally…")
+        loadingMessage: String(localized: "Understanding intent…")
     )
 
     private let coordinator: IntentCaptureCoordinator
