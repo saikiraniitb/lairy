@@ -12,6 +12,7 @@ public struct IntentMetricEvent: Codable, Sendable {
         case cloudFallbackRequested = "cloud_fallback_requested"
         case inboxOpened = "inbox_opened"
         case markedDone = "marked_done"
+        case markedWaiting = "marked_waiting"
         case reopened
         case cancelled
         case deleted

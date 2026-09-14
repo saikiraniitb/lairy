@@ -64,7 +64,7 @@ public final class CloudIntentParser: IntentParsing, Sendable {
             validationResult: "cloud JSON decoded"
         )
         guard let rawType else { return .noIntent(diagnostics: diagnostics) }
-        guard let type = IntentType(rawValue: rawType), let summary = Self.nonEmpty(response.summary) else {
+        guard let type = IntentType.resolve(rawValue: rawType), let summary = Self.nonEmpty(response.summary) else {
             return .uncertain(nil, confidence: nil, diagnostics: diagnostics)
         }
         let deadlineText = Self.nonEmpty(response.deadlineText)
@@ -89,14 +89,16 @@ public final class CloudIntentParser: IntentParsing, Sendable {
 
     private static let prompt = """
     Classify the selected text as exactly one IntentOS intent or no intent. Return only one JSON object.
-    Types are remember, do, and follow_up. remember requires an explicit request to preserve information.
-    do requires the speaker's pending action/commitment or a direct imperative. follow_up requires a
-    pending action gated by an event, condition, receipt, missing response, or future checkpoint.
+    Types are action, request, waiting, and remember. action requires the speaker's own pending
+    task/commitment or a direct imperative addressed to the speaker. request requires the speaker
+    asking someone else to do something with no reply yet. waiting requires a pending action gated
+    by someone else's response, an event, or a condition. remember requires an explicit request to
+    preserve information.
     Return {"type":null} for descriptions, negation, cancellation, completed work, weak speculation,
-    and clearly third-party commitments. Never invent fields. Preserve date language verbatim in
-    deadline_text. For multiple actions return one primary intent with a combined summary. Allowed
-    keys: type, summary, subject, action, object, target, deadline_text, trigger. Optional missing
-    values must be null or omitted.
+    and clearly third-party commitments not tied back to the speaker. Never invent fields. Preserve
+    date language verbatim in deadline_text. For multiple actions return one primary intent with a
+    combined summary. Allowed keys: type, summary, subject, action, object, target, deadline_text,
+    trigger. Optional missing values must be null or omitted.
     """
 
     private static func jsonData(from output: String) -> Data? {

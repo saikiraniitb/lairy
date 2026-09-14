@@ -30,7 +30,7 @@ final class NeedleIntentParserTests: XCTestCase {
         )
 
         guard case .intent(let draft) = result else { return XCTFail("Expected intent") }
-        XCTAssertEqual(draft.type, .doAction)
+        XCTAssertEqual(draft.type, .action)
         XCTAssertEqual(draft.action, "send")
         XCTAssertEqual(draft.object, "revised deck")
         XCTAssertEqual(draft.target, "Rahul")
@@ -54,7 +54,7 @@ final class NeedleIntentParserTests: XCTestCase {
             return XCTFail("Expected uncertain")
         }
         XCTAssertEqual(confidence, 0.21)
-        XCTAssertEqual(draft?.type, .followUp)
+        XCTAssertEqual(draft?.type, .waiting)
         XCTAssertEqual(draft?.trigger, "Finance doesn't approve this")
     }
 

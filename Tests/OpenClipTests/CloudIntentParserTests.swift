@@ -6,7 +6,7 @@ import XCTest
 final class CloudIntentParserTests: XCTestCase {
     func testCloudParserDecodesOneStructuredIntent() async throws {
         let provider = FixedCloudProvider(output: """
-        {"type":"follow_up","summary":"send the proposal to Priya","action":"send","object":"proposal","target":"Priya","deadline_text":null,"trigger":"Finance confirms the budget"}
+        {"type":"waiting","summary":"send the proposal to Priya","action":"send","object":"proposal","target":"Priya","deadline_text":null,"trigger":"Finance confirms the budget"}
         """)
         let parser = CloudIntentParser(provider: provider, parserName: "cloud.openai")
         let source = "Once Finance confirms the budget, send the proposal to Priya."
@@ -17,7 +17,7 @@ final class CloudIntentParserTests: XCTestCase {
         )
 
         guard case .intent(let draft) = result else { return XCTFail("Expected intent") }
-        XCTAssertEqual(draft.type, .followUp)
+        XCTAssertEqual(draft.type, .waiting)
         XCTAssertEqual(draft.trigger, "Finance confirms the budget")
         XCTAssertEqual(draft.target, "Priya")
         XCTAssertEqual(draft.sourceText, source)

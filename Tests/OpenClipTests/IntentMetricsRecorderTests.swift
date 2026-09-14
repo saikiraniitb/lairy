@@ -14,7 +14,7 @@ final class IntentMetricsRecorderTests: XCTestCase {
             parser: "needle2-base",
             latencyMilliseconds: 100,
             confidence: 0.2,
-            intentClass: .doAction,
+            intentClass: .action,
             outcome: .uncertain
         ))
 

@@ -5,7 +5,7 @@ final class IntentDomainTests: XCTestCase {
     func testCapturedIntentPreservesDraftAndSourceText() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let draft = IntentDraft(
-            type: .doAction,
+            type: .action,
             summary: "Send revised deck to Rahul",
             action: "send",
             object: "revised deck",
@@ -21,7 +21,7 @@ final class IntentDomainTests: XCTestCase {
         let captured = CapturedIntent(draft: draft, now: now)
 
         XCTAssertEqual(captured.status, .open)
-        XCTAssertEqual(captured.type, .doAction)
+        XCTAssertEqual(captured.type, .action)
         XCTAssertEqual(captured.sourceText, draft.sourceText)
         XCTAssertEqual(captured.sourceApplicationBundleIdentifier, "com.apple.Notes")
         XCTAssertEqual(captured.createdAt, now)

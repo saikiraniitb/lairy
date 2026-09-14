@@ -109,8 +109,9 @@ public actor FileIntentRepository: IntentRepository {
     private static func statusRank(_ status: IntentStatus) -> Int {
         switch status {
         case .open: return 0
-        case .done: return 1
-        case .cancelled: return 2
+        case .waiting: return 1
+        case .done: return 2
+        case .cancelled: return 3
         }
     }
 }

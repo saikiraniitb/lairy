@@ -21,7 +21,7 @@ final class FileIntentRepositoryTests: XCTestCase {
     func testCRUDPersistsAcrossRepositoryInstances() async throws {
         let fileURL = temporaryDirectory.appendingPathComponent("intents.json")
         let draft = IntentDraft(
-            type: .doAction,
+            type: .action,
             summary: "Review PR 182",
             action: "review",
             object: "PR 182",
@@ -82,6 +82,44 @@ final class FileIntentRepositoryTests: XCTestCase {
 
         let persisted = try await repository.fetchAll()
         XCTAssertEqual(persisted, [intent])
+    }
+
+    /// Records written before the Gemini-era taxonomy (action/request/waiting/remember) used
+    /// "do" and "follow_up" for `type`. They must keep decoding rather than corrupting the whole
+    /// store — see `IntentType.resolve(rawValue:)`.
+    func testReadsLegacyIntentTypeRawValues() async throws {
+        let fileURL = temporaryDirectory.appendingPathComponent("intents.json")
+        let legacyJSON = """
+        [
+          {
+            "id": "5F1B2B2E-9B5B-4B9B-8B9B-000000000001",
+            "type": "do",
+            "status": "open",
+            "summary": "Send the deck",
+            "sourceText": "I'll send the deck.",
+            "parser": "test",
+            "createdAt": 1800000000,
+            "updatedAt": 1800000000
+          },
+          {
+            "id": "5F1B2B2E-9B5B-4B9B-8B9B-000000000002",
+            "type": "follow_up",
+            "status": "open",
+            "summary": "Waiting on Priya",
+            "sourceText": "Once Priya confirms, send the deck.",
+            "parser": "test",
+            "createdAt": 1800000000,
+            "updatedAt": 1800000000
+          }
+        ]
+        """
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        try legacyJSON.data(using: .utf8)!.write(to: fileURL)
+
+        let persisted = try await repository.fetchAll()
+        XCTAssertEqual(persisted.count, 2)
+        XCTAssertEqual(persisted.first { $0.summary == "Send the deck" }?.type, .action)
+        XCTAssertEqual(persisted.first { $0.summary == "Waiting on Priya" }?.type, .waiting)
     }
 }
 

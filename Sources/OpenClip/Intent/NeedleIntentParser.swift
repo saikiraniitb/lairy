@@ -229,7 +229,7 @@ public actor NeedleIntentParser: IntentParsing {
         guard let rawType = response.predictedIntentType else {
             return .noIntent(diagnostics: diagnostics)
         }
-        guard let type = IntentType(rawValue: rawType) else {
+        guard let type = IntentType.resolve(rawValue: rawType) else {
             return .uncertain(nil, confidence: response.confidence, diagnostics: diagnostics)
         }
 
