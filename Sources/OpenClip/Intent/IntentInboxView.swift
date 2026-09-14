@@ -25,9 +25,9 @@ public struct IntentInboxView: View {
                 .padding()
 
                 List(selection: $store.selectedID) {
-                    intentSection("OPEN", status: .open)
-                    intentSection("DONE", status: .done)
-                    intentSection("CANCELLED", status: .cancelled)
+                    ForEach(IntentInboxGroup.allCases, id: \.self) { group in
+                        intentSection(group)
+                    }
                 }
                 .listStyle(.sidebar)
             }
@@ -60,23 +60,29 @@ public struct IntentInboxView: View {
     }
 
     @ViewBuilder
-    private func intentSection(_ title: String, status: IntentStatus) -> some View {
-        let matches = store.intents(with: status)
+    private func intentSection(_ group: IntentInboxGroup) -> some View {
+        let matches = store.intents(in: group)
         if !matches.isEmpty {
-            Section(title) {
+            Section(group.title) {
                 ForEach(matches) { intent in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Image(systemName: status == .done ? "checkmark.circle.fill" : status == .cancelled ? "xmark.circle" : "circle")
-                                .foregroundStyle(status == .done ? Color.green : Color.secondary)
+                            Image(systemName: rowSymbol(for: intent, group: group))
+                                .foregroundStyle(intent.status == .done ? Color.green : Color.secondary)
                             Text(intent.summary).lineLimit(2)
                         }
-                        if let context = intent.deadlineText ?? intent.trigger {
+                        if group == .remember {
+                            EmptyView()
+                        } else if let context = intent.waitingFor.map({ "Waiting for \($0)" }) ?? intent.deadlineText ?? intent.trigger {
                             Text(context)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .padding(.leading, 22)
                         }
+                        Text(intent.sourceApplicationName ?? "Unknown app")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 22)
                     }
                     .tag(intent.id)
                     .contextMenu {
@@ -86,6 +92,15 @@ public struct IntentInboxView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func rowSymbol(for intent: CapturedIntent, group: IntentInboxGroup) -> String {
+        switch group {
+        case .done: return "checkmark.circle.fill"
+        case .remember: return "bookmark"
+        case .waiting: return "clock"
+        default: return "circle"
         }
     }
 
@@ -102,22 +117,27 @@ public struct IntentInboxView: View {
                 Text(intent.summary).font(.title2.bold()).textSelection(.enabled)
                 metadata(intent)
 
+                if !intent.resources.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(intent.resources, id: \.url) { resource in
+                            Link(resource.label ?? resource.url, destination: URL(string: resource.url) ?? URL(string: "about:blank")!)
+                                .font(.callout)
+                        }
+                    }
+                }
+
                 Divider()
                 detailBlock("ORIGINAL SOURCE", intent.sourceText)
-                detailBlock(
-                    "SOURCE APPLICATION",
-                    [intent.sourceApplicationName, intent.sourceApplicationBundleIdentifier]
-                        .compactMap { $0 }.joined(separator: " • ")
-                )
+                detailBlock("SOURCE APPLICATION", intent.sourceApplicationName ?? "Unknown app")
                 if debugMode {
                     Divider()
                     Text("DEBUG").font(.caption.bold()).foregroundStyle(.secondary)
+                    detailBlock("SOURCE BUNDLE IDENTIFIER", intent.sourceApplicationBundleIdentifier ?? "unknown")
                     detailBlock("PARSER", intent.parser)
                     detailBlock("CONFIDENCE", intent.parserConfidence.map { String($0) } ?? "unavailable")
-                    detailBlock("NEEDLE RAW RESPONSE", intent.diagnostics?.rawResponse ?? "unavailable")
-                    detailBlock("TOOL SELECTED", intent.diagnostics?.toolSelected ?? "none")
-                    detailBlock("RAW ARGUMENTS", intent.diagnostics?.rawArguments ?? "none")
-                    detailBlock("VALIDATION RESULT", intent.diagnostics?.validationResult ?? "unavailable")
+                    detailBlock("RAW STRUCTURED OUTPUT", intent.diagnostics?.rawResponse ?? "unavailable")
+                    detailBlock("GROUNDING EVIDENCE", intent.diagnostics?.rawArguments ?? "none")
+                    detailBlock("FIELDS REMOVED BY VALIDATOR", intent.diagnostics?.validationResult ?? "unavailable")
                     Button("Copy Debug Information") { copyDebug(intent) }
                 }
                 HStack {
@@ -141,11 +161,11 @@ public struct IntentInboxView: View {
     @ViewBuilder
     private func metadata(_ intent: CapturedIntent) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
-            metadataRow("Action", intent.action)
-            metadataRow("Object", intent.object)
             metadataRow("To", intent.target)
-            metadataRow("Deadline", intent.deadlineText)
-            metadataRow("Waiting for", intent.trigger)
+            metadataRow("Deadline", intent.deadlineText ?? (intent.type == .remember ? nil : "No deadline specified"))
+            metadataRow("Waiting for", intent.waitingFor)
+            metadataRow("Trigger", intent.trigger)
+            metadataRow("Requested outcome", intent.requestedOutcome)
             metadataRow("Subject", intent.subject)
         }
     }
@@ -170,6 +190,7 @@ public struct IntentInboxView: View {
     @ViewBuilder
     private func statusMenu(_ intent: CapturedIntent) -> some View {
         if intent.status != .open { Button("Reopen") { store.setStatus(.open, for: intent.id) } }
+        if intent.status != .waiting { Button("Mark Waiting") { store.setStatus(.waiting, for: intent.id) } }
         if intent.status != .done { Button("Mark Done") { store.setStatus(.done, for: intent.id) } }
         if intent.status != .cancelled { Button("Cancel") { store.setStatus(.cancelled, for: intent.id) } }
     }
@@ -185,26 +206,20 @@ public struct IntentInboxView: View {
         PARSER
         \(intent.parser)
 
-        NEEDLE RAW RESPONSE
+        RAW STRUCTURED OUTPUT
         \(intent.diagnostics?.rawResponse ?? "unavailable")
 
-        TOOL SELECTED
-        \(intent.diagnostics?.toolSelected ?? "none")
-
-        RAW ARGUMENTS
+        GROUNDING EVIDENCE
         \(intent.diagnostics?.rawArguments ?? "none")
+
+        FIELDS REMOVED BY VALIDATOR
+        \(intent.diagnostics?.validationResult ?? "unavailable")
 
         CONFIDENCE
         \(intent.parserConfidence.map { String($0) } ?? "unavailable")
 
         LATENCY
         \(intent.diagnostics?.latencyMilliseconds.map { String($0) } ?? "unavailable")
-
-        PEAK RAM
-        \(intent.diagnostics?.peakRAMMegabytes.map { String($0) } ?? "unavailable")
-
-        VALIDATION RESULT
-        \(intent.diagnostics?.validationResult ?? "unavailable")
 
         FINAL SAVED INTENT
         \(encoded(intent))

@@ -1,6 +1,32 @@
 import Foundation
 import Core
 
+/// Intent Inbox grouping — not the same axis as `IntentStatus`/`IntentType`. Mutually exclusive,
+/// evaluated in this priority order so a cancelled item never leaks into another group, a
+/// REMEMBER note always groups by content rather than by date, and TODAY/OPEN/LATER slice the
+/// remaining open work only by whether (and when) it has a real, grounded deadline.
+public enum IntentInboxGroup: String, CaseIterable, Sendable {
+    case today = "TODAY"
+    case open = "OPEN"
+    case waiting = "WAITING"
+    case later = "LATER"
+    case remember = "REMEMBER"
+    case done = "DONE"
+
+    public var title: String { rawValue }
+
+    public static func group(for intent: CapturedIntent, now: Date = Date()) -> IntentInboxGroup? {
+        if intent.status == .cancelled { return nil }
+        if intent.status == .done { return .done }
+        if intent.type == .remember { return .remember }
+        if intent.status == .waiting { return .waiting }
+        guard let deadline = intent.deadline else { return .open }
+        let calendar = Calendar.current
+        let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        return deadline < endOfToday ? .today : .later
+    }
+}
+
 @MainActor
 public final class IntentInboxStore: ObservableObject {
     public static let shared = IntentInboxStore(repository: FileIntentRepository.shared)
@@ -22,6 +48,10 @@ public final class IntentInboxStore: ObservableObject {
 
     public func intents(with status: IntentStatus) -> [CapturedIntent] {
         intents.filter { $0.status == status }
+    }
+
+    public func intents(in group: IntentInboxGroup) -> [CapturedIntent] {
+        intents.filter { IntentInboxGroup.group(for: $0) == group }
     }
 
     public func reload() async {
@@ -47,6 +77,7 @@ public final class IntentInboxStore: ObservableObject {
                 let outcome: IntentMetricEvent.Outcome
                 switch status {
                 case .open: outcome = .reopened
+                case .waiting: outcome = .markedWaiting
                 case .done: outcome = .markedDone
                 case .cancelled: outcome = .cancelled
                 }
