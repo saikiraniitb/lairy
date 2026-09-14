@@ -4,16 +4,18 @@
 // Provider-neutral, app-agnostic resolver for `IntentSourceContext`. Never coupled to a specific
 // app: it walks a SMALL, BOUNDED neighborhood around the currently focused UI element (the one the
 // user just selected text in) looking for structural signals — nearby short static-text elements
-// that look like a person's name or a timestamp, and the focused window's title as a conversation
-// hint. It never reads anything outside that bounded neighborhood: no conversation history, no
-// contact list, no hidden page text.
+// that look like a person's name or a timestamp, the focused window's title as a conversation
+// hint, and the message bubble's on-screen position relative to the window as a direction signal
+// (own messages are conventionally right-aligned in chat UIs; never inferred from wording). It
+// never reads anything outside that bounded neighborhood: no conversation history, no contact
+// list, no hidden page text.
 //
 // This is deliberately a heuristic, not a per-app scraper: Google Chat (running as a web app in
 // Chrome) is the first real target, reached generically through the same AX structure any
-// message-like UI tends to expose (a short name/time label near the selected message body), not
-// through any Chrome- or Google-specific string matching. If a future app's structure defeats
-// these heuristics, the fix is a narrower, purpose-built `SourceContextResolving` conformer for
-// that app — not broadening this one's reach.
+// message-like UI tends to expose (a short name/time label near the selected message body, a
+// left/right-aligned bubble), not through any Chrome- or Google-specific string matching. If a
+// future app's structure defeats these heuristics, the fix is a narrower, purpose-built
+// `SourceContextResolving` conformer for that app — not broadening this one's reach.
 import AppKit
 import Core
 @_exported import OpenSelection
@@ -54,11 +56,19 @@ public struct AccessibilitySourceContextResolver: SourceContextResolving {
             return context
         }
 
-        context.conversationTitle = Self.windowTitle(for: target.focusedApp)
-        IntentSourceContextLog.debug("startRole=\(target.role ?? "nil") conversationTitle=\(context.conversationTitle ?? "nil")")
+        let window = Self.focusedWindow(for: target.focusedApp)
+        context.conversationTitle = window.flatMap { AXElementInspector.read($0, kAXTitleAttribute) as? String }
+        // A 1:1 conversation's window/tab title in Google Chat (and similarly-structured chat
+        // apps) IS the other participant's name. A group chat's title does not shape like a
+        // single person's name, so this stays nil there — see the trust rule in the file header
+        // and IntentSourceContext.oneOnOneParticipant's doc comment.
+        context.oneOnOneParticipant = context.conversationTitle.flatMap { Self.looksLikePersonName($0) ? $0 : nil }
+        IntentSourceContextLog.debug("startRole=\(target.role ?? "nil") conversationTitle=\(context.conversationTitle ?? "nil") oneOnOneParticipant=\(context.oneOnOneParticipant ?? "nil")")
 
+        let windowFrame = window.flatMap(Self.elementFrame)
         let found = Self.findMessageMetadata(
             near: focusedElement,
+            windowFrame: windowFrame,
             maxAncestorDepth: maxAncestorDepth,
             maxDescendantDepth: maxDescendantDepth,
             maxChildrenPerLevel: maxChildrenPerLevel,
@@ -75,6 +85,7 @@ public struct AccessibilitySourceContextResolver: SourceContextResolving {
 
     private static func findMessageMetadata(
         near element: AXUIElement,
+        windowFrame: CGRect?,
         maxAncestorDepth: Int,
         maxDescendantDepth: Int,
         maxChildrenPerLevel: Int,
@@ -102,18 +113,38 @@ public struct AccessibilitySourceContextResolver: SourceContextResolving {
                 else if sender == nil, looksLikePersonName(text) { sender = text }
             }
 
+            let positionHint: MessageDirection? = elementFrame(parent).flatMap { frame in
+                windowFrame.map { directionFromPosition(messageFrame: frame, windowFrame: $0) }
+            }
             IntentSourceContextLog.debug(
-                "level=\(level) role=\(AXElementInspector.read(parent, kAXRoleAttribute) as? String ?? "nil") candidates=\(filtered.count) sender=\(sender ?? "nil") timestamp=\(timestamp ?? "nil")"
+                "level=\(level) role=\(AXElementInspector.read(parent, kAXRoleAttribute) as? String ?? "nil") candidates=\(filtered.count) sender=\(sender ?? "nil") timestamp=\(timestamp ?? "nil") positionHint=\(positionHint?.rawValue ?? "nil")"
             )
 
             if sender != nil || timestamp != nil {
                 let isSelf = sender?.caseInsensitiveCompare("you") == .orderedSame
-                let direction: MessageDirection = isSelf ? .outgoing : (sender != nil ? .incoming : .unknown)
+                let direction: MessageDirection
+                if isSelf {
+                    direction = .outgoing
+                } else if sender != nil {
+                    direction = .incoming
+                } else {
+                    // A timestamp was found but no name label — own messages in chat UIs
+                    // conventionally carry no name badge at all, so fall back to the message
+                    // bubble's on-screen position, never to reading the message's wording.
+                    direction = positionHint ?? .unknown
+                }
                 return (isSelf ? nil : sender, timestamp, direction)
             }
             current = parent
         }
-        return (nil, nil, .unknown)
+
+        // Nothing textual found anywhere in the bounded walk — last resort is the ORIGINAL
+        // element's own position, still purely structural.
+        let fallbackDirection = elementFrame(element).flatMap { messageFrame in
+            windowFrame.map { directionFromPosition(messageFrame: messageFrame, windowFrame: $0) }
+        } ?? .unknown
+        IntentSourceContextLog.debug("no textual candidate found in \(maxAncestorDepth) levels; positionFallback=\(fallbackDirection.rawValue)")
+        return (nil, nil, fallbackDirection)
     }
 
     private static func collectStaticTexts(
@@ -136,15 +167,34 @@ public struct AccessibilitySourceContextResolver: SourceContextResolving {
         }
     }
 
-    private static func windowTitle(for app: AXUIElement?) -> String? {
+    private static func focusedWindow(for app: AXUIElement?) -> AXUIElement? {
         guard let app,
               let windowValue = AXElementInspector.read(app, kAXFocusedWindowAttribute),
               CFGetTypeID(windowValue) == AXUIElementGetTypeID() else {
             return nil
         }
         // swiftlint:disable:next force_cast
-        let window = windowValue as! AXUIElement
-        return AXElementInspector.read(window, kAXTitleAttribute) as? String
+        return (windowValue as! AXUIElement)
+    }
+
+    private static func elementFrame(_ element: AXUIElement) -> CGRect? {
+        guard let positionValue = AXElementInspector.read(element, kAXPositionAttribute),
+              CFGetTypeID(positionValue) == AXValueGetTypeID() else {
+            return nil
+        }
+        var point = CGPoint.zero
+        // swiftlint:disable:next force_cast
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &point) else { return nil }
+
+        guard let sizeValue = AXElementInspector.read(element, kAXSizeAttribute),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else {
+            return nil
+        }
+        var size = CGSize.zero
+        // swiftlint:disable:next force_cast
+        guard AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else { return nil }
+
+        return CGRect(origin: point, size: size)
     }
 
     // MARK: - Candidate heuristics (fail closed: never guess)
@@ -170,6 +220,20 @@ public struct AccessibilitySourceContextResolver: SourceContextResolving {
             DefaultAppRules.safariGroup + DefaultAppRules.chromiumGroup + DefaultAppRules.firefoxGroup + DefaultAppRules.arcGroup,
             bundleID: bundleID
         )
+    }
+
+    /// Pure, directly-testable structural signal: which side of the window a message bubble sits
+    /// on. A chat UI convention (not universal), used only as a fallback when no explicit
+    /// name/"You" label was found — never derived from the message's wording. `.unknown` inside a
+    /// central margin band avoids false signals from full-width rows (e.g. system messages).
+    static func directionFromPosition(messageFrame: CGRect, windowFrame: CGRect, centerMarginFraction: CGFloat = 0.08) -> MessageDirection {
+        guard windowFrame.width > 0 else { return .unknown }
+        let margin = windowFrame.width * centerMarginFraction
+        let windowMidX = windowFrame.midX
+        let messageMidX = messageFrame.midX
+        if messageMidX > windowMidX + margin { return .outgoing }
+        if messageMidX < windowMidX - margin { return .incoming }
+        return .unknown
     }
 }
 

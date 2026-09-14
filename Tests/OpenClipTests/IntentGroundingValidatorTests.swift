@@ -145,11 +145,20 @@ final class IntentGroundingValidatorTests: XCTestCase {
 
     /// A name grounded via trusted `conversationTitle` (not just `sender`) also survives for
     /// non-requestedBy person fields.
-    func testWaitingForGroundedByConversationTitle() {
-        let context = IntentSourceContext(conversationTitle: "Ravi Kumar", selectedText: "Can you check with him?")
+    func testWaitingForGroundedByOneOnOneParticipant() {
+        let context = IntentSourceContext(conversationTitle: "Ravi Kumar", oneOnOneParticipant: "Ravi Kumar", selectedText: "Can you check with him?")
         let proposed = IntentUnderstanding(hasTrackableIntent: true, waitingFor: "Ravi Kumar")
         let result = IntentGroundingValidator.validate(proposed, sourceText: "Can you check with him?", sourceContext: context)
         XCTAssertEqual(result.understanding.waitingFor, "Ravi Kumar")
+    }
+
+    /// A group chat's title must never ground a person field — only a reliably-determined 1:1
+    /// participant may (see IntentSourceContext.oneOnOneParticipant).
+    func testGroupChatConversationTitleNeverGroundsAPerson() {
+        let context = IntentSourceContext(conversationTitle: "Engineering Team", selectedText: "Can you check with him?")
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, waitingFor: "Engineering Team")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: "Can you check with him?", sourceContext: context)
+        XCTAssertNil(result.understanding.waitingFor)
     }
 
     /// No regression: existing resource/date grounding is unaffected by adding sourceContext.

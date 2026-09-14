@@ -74,4 +74,40 @@ final class AccessibilitySourceContextResolverTests: XCTestCase {
         XCTAssertEqual(context.selectedText, "Some note text")
         XCTAssertEqual(context.bundleIdentifier, "com.apple.Notes")
     }
+
+    // MARK: - Structural (never wording-based) direction fallback
+
+    private let windowFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+    func testRightAlignedBubbleIsOutgoing() {
+        let messageFrame = CGRect(x: 700, y: 100, width: 250, height: 60)
+        XCTAssertEqual(AccessibilitySourceContextResolver.directionFromPosition(messageFrame: messageFrame, windowFrame: windowFrame), .outgoing)
+    }
+
+    func testLeftAlignedBubbleIsIncoming() {
+        let messageFrame = CGRect(x: 50, y: 100, width: 250, height: 60)
+        XCTAssertEqual(AccessibilitySourceContextResolver.directionFromPosition(messageFrame: messageFrame, windowFrame: windowFrame), .incoming)
+    }
+
+    func testFullWidthRowNearCenterIsUnknown() {
+        let messageFrame = CGRect(x: 0, y: 100, width: 1000, height: 60)
+        XCTAssertEqual(AccessibilitySourceContextResolver.directionFromPosition(messageFrame: messageFrame, windowFrame: windowFrame), .unknown)
+    }
+
+    func testZeroWidthWindowIsUnknown() {
+        let messageFrame = CGRect(x: 700, y: 100, width: 250, height: 60)
+        XCTAssertEqual(AccessibilitySourceContextResolver.directionFromPosition(messageFrame: messageFrame, windowFrame: .zero), .unknown)
+    }
+
+    // MARK: - 1:1 participant heuristic (drives IntentSourceContext.oneOnOneParticipant)
+
+    func testPersonShapedConversationTitleIsUsableAsParticipant() {
+        XCTAssertTrue(AccessibilitySourceContextResolver.looksLikePersonName("Shreya Guptha Vutukuri"))
+    }
+
+    func testGroupChatTitleIsNotUsableAsParticipant() {
+        // Typical group titles: not Title-Case-word-shaped, or contain punctuation/numbers/all caps.
+        XCTAssertFalse(AccessibilitySourceContextResolver.looksLikePersonName("Engineering, Design & Product"))
+        XCTAssertFalse(AccessibilitySourceContextResolver.looksLikePersonName("Q3 Planning"))
+    }
 }

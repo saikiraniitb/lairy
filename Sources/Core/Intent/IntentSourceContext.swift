@@ -36,6 +36,15 @@ public struct IntentSourceContext: Sendable, Equatable {
     /// the selected text itself (e.g. an @mention inside the message body is not a sender).
     public var sender: String?
     public var conversationTitle: String?
+    /// The OTHER participant in a reliably-determined 1:1 conversation — set only when
+    /// `conversationTitle` itself is shaped like a single person's name, never for a group chat.
+    /// Safe to use as a grounding source and as the deterministic `waitingFor` for an outgoing
+    /// request when the model didn't already name someone; never guessed for group chats, where
+    /// this stays nil and exact sender attribution (or nothing) is required instead.
+    public var oneOnOneParticipant: String?
+    /// When the message was sent, per trusted UI metadata — source metadata only. Must never be
+    /// used to populate a deadline/due/event/follow-up value; see `IntentGroundingValidator` and
+    /// `GeminiIntentParser`'s prompt, which labels it explicitly as not a task deadline.
     public var timestampText: String?
     public var direction: MessageDirection
 
@@ -46,6 +55,7 @@ public struct IntentSourceContext: Sendable, Equatable {
         bundleIdentifier: String? = nil,
         sender: String? = nil,
         conversationTitle: String? = nil,
+        oneOnOneParticipant: String? = nil,
         timestampText: String? = nil,
         direction: MessageDirection = .unknown,
         selectedText: String
@@ -54,6 +64,7 @@ public struct IntentSourceContext: Sendable, Equatable {
         self.bundleIdentifier = bundleIdentifier
         self.sender = sender
         self.conversationTitle = conversationTitle
+        self.oneOnOneParticipant = oneOnOneParticipant
         self.timestampText = timestampText
         self.direction = direction
         self.selectedText = selectedText

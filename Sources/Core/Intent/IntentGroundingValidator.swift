@@ -12,9 +12,10 @@
 //     recognized temporal evidence to exist in the source at all (see `TemporalPhraseExtractor`),
 //     so a claimed date can never survive on a coincidental substring match alone.
 //   - waitingFor, target, requestedBy: person identities. Grounded from EITHER the source text
-//     verbatim OR trusted `IntentSourceContext` (sender/conversationTitle) — a name never present
-//     in the message body can still be valid when it came from trusted UI metadata (e.g. the
-//     message's actual sender), but a name present in neither is always rejected.
+//     verbatim OR trusted `IntentSourceContext` (sender, or the other participant in a reliably-
+//     determined 1:1 conversation — never a group chat's title) — a name never present in the
+//     message body can still be valid when it came from trusted UI metadata (e.g. the message's
+//     actual sender), but a name present in neither is always rejected.
 //     `requestedBy` additionally has a hard override: when `IntentSourceContext.sender` is
 //     trusted (non-nil), it always wins outright, regardless of what the provider proposed — an
 //     @mention inside the message body must never be mistaken for who sent it.
@@ -82,11 +83,29 @@ public enum IntentGroundingValidator {
 
         groundVerbatimField(\.trigger, on: &understanding, sourceText: sourceText, field: "trigger", rejections: &rejections)
 
-        let trustedNames = [sourceContext?.sender, sourceContext?.conversationTitle]
+        // Note: deliberately `oneOnOneParticipant`, not the raw `conversationTitle` — a group
+        // chat's title must never ground a person field (see IntentSourceContext's doc comment).
+        let trustedNames = [sourceContext?.sender, sourceContext?.oneOnOneParticipant]
             .compactMap { $0 }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        groundPersonField(\.waitingFor, on: &understanding, sourceText: sourceText, trustedNames: trustedNames, field: "waitingFor", rejections: &rejections)
+        // An outgoing message with a reliably-known 1:1 participant: that participant is always
+        // who the user is waiting on, deterministically overriding whatever the provider proposed
+        // (including a wrong guess that latched onto some other name mentioned in the message) —
+        // never left to the model's own judgment, same hard-override pattern as requestedBy below.
+        if understanding.direction == .outgoing, let participant = normalized(sourceContext?.oneOnOneParticipant) {
+            if let proposedWaitingFor = normalized(understanding.waitingFor),
+               proposedWaitingFor.caseInsensitiveCompare(participant) != .orderedSame {
+                rejections.append(IntentGroundingRejection(
+                    field: "waitingFor",
+                    value: proposedWaitingFor,
+                    reason: "overridden by trusted 1:1 conversation participant"
+                ))
+            }
+            understanding.waitingFor = participant
+        } else {
+            groundPersonField(\.waitingFor, on: &understanding, sourceText: sourceText, trustedNames: trustedNames, field: "waitingFor", rejections: &rejections)
+        }
         groundPersonField(\.target, on: &understanding, sourceText: sourceText, trustedNames: trustedNames, field: "target", rejections: &rejections)
 
         // requestedBy: a trusted sender always wins outright — never let the provider's own

@@ -364,6 +364,17 @@ public actor GeminiIntentParser: IntentParsing {
     person as a target/recipient when the text clearly asks the reader to direct something TO that
     specific person (e.g. "send it to Priya"), not merely because their name appears.
 
+    When direction is "outgoing" and the text asks someone else to do something (e.g. "so please
+    update the doc accordingly"), that is a REQUEST/WAITING situation, not a self-owned action:
+    the work belongs to the other person in the conversation, even though the user wrote the
+    message. Set owner to "other" in that case — never "self" merely because the user is the one
+    who sent the message.
+
+    "message_timestamp" in CONTEXT describes when the message was sent. It is metadata only — it
+    is NEVER a task deadline. Only copy something into deadlineText when the SELECTED TEXT itself
+    states a temporal commitment (a date, day, or time the task is due/scheduled for); the
+    presence of message_timestamp is never a reason to populate deadlineText.
+
     Return only structured data matching the provided schema.
     """
 
@@ -378,7 +389,9 @@ public actor GeminiIntentParser: IntentParsing {
         if let appName = sourceContext.applicationName { fields["source_application"] = appName }
         if let sender = sourceContext.sender { fields["sender"] = sender }
         if let title = sourceContext.conversationTitle { fields["conversation_title"] = title }
-        if let timestamp = sourceContext.timestampText { fields["timestamp"] = timestamp }
+        // Labeled distinctly from any deadline field, and called out explicitly in the system
+        // prompt: this is when the message was SENT, never evidence of a task deadline.
+        if let timestamp = sourceContext.timestampText { fields["message_timestamp"] = timestamp }
         if sourceContext.direction != .unknown { fields["direction"] = sourceContext.direction.rawValue }
 
         guard let contextData = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]),
