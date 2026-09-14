@@ -7,6 +7,22 @@ areas; stale debt notes are worse than none.
 
 ---
 
+## IntentOS experimental fork
+
+- The Needle 2 base-model benchmark fails the abstract three-intent taxonomy. The 0.75 threshold
+  therefore routes every observed model call to the uncertain/manual-edit path; this is safe but
+  does not satisfy hands-off interpretation quality.
+- The development parser bridge depends on the ignored `tools/needle-spike/.venv` and source-tree
+  helper. A distributed app needs the official static/native runtime packaged and signed; no Python
+  environment should ship by accident.
+- The structured preview is a separate `PopupPanel` presented after OpenClip's loading toast. It
+  reuses the panel behavior and source selection but is not yet a fourth mode in
+  `PopupWindowController`'s existing mode state machine.
+- IntentOS user-facing strings have English source values but the upstream translation catalog has
+  not yet received reviewed translations for the experimental UI.
+
+---
+
 ## Settings Migration (UserDefaults → SettingsStore)
 
 - The typed settings abstraction is `SettingsStore` + `SettingKey<T>` (see `Sources/Core/Settings/`).

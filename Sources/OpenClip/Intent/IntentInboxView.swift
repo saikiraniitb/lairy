@@ -113,7 +113,7 @@ public struct IntentInboxView: View {
                     Divider()
                     Text("DEBUG").font(.caption.bold()).foregroundStyle(.secondary)
                     detailBlock("PARSER", intent.parser)
-                    detailBlock("CONFIDENCE", intent.parserConfidence.map(String.init) ?? "unavailable")
+                    detailBlock("CONFIDENCE", intent.parserConfidence.map { String($0) } ?? "unavailable")
                     detailBlock("NEEDLE RAW RESPONSE", intent.diagnostics?.rawResponse ?? "unavailable")
                     detailBlock("TOOL SELECTED", intent.diagnostics?.toolSelected ?? "none")
                     detailBlock("RAW ARGUMENTS", intent.diagnostics?.rawArguments ?? "none")
@@ -195,13 +195,13 @@ public struct IntentInboxView: View {
         \(intent.diagnostics?.rawArguments ?? "none")
 
         CONFIDENCE
-        \(intent.parserConfidence.map(String.init) ?? "unavailable")
+        \(intent.parserConfidence.map { String($0) } ?? "unavailable")
 
         LATENCY
-        \(intent.diagnostics?.latencyMilliseconds.map(String.init) ?? "unavailable")
+        \(intent.diagnostics?.latencyMilliseconds.map { String($0) } ?? "unavailable")
 
         PEAK RAM
-        \(intent.diagnostics?.peakRAMMegabytes.map(String.init) ?? "unavailable")
+        \(intent.diagnostics?.peakRAMMegabytes.map { String($0) } ?? "unavailable")
 
         VALIDATION RESULT
         \(intent.diagnostics?.validationResult ?? "unavailable")

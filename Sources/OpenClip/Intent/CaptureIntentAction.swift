@@ -32,4 +32,3 @@ public struct CaptureIntentAction: Action, Sendable {
         return try await coordinator.capture(selection: context.selection)
     }
 }
-

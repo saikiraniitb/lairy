@@ -13,10 +13,10 @@ Control check: the package's own `productivity` acceptance suite passed 28/32 ca
 - Deadline extraction accuracy: 15.8%
 - Trigger extraction accuracy: 0.0%
 - False-positive rate on no-intent cases: 84.2% (32/38)
-- Cold model initialization: 1202.0 ms
-- Median warm latency: 106.5 ms
-- P95 warm latency: 151.6 ms
-- Peak RAM reported/observed: 64.1 MB
+- Cold model initialization: 1495.8 ms
+- Median warm latency: 194.1 ms
+- P95 warm latency: 261.2 ms
+- Peak RAM reported/observed: 57.1 MB
 
 Field matching is conservative but allows case/punctuation differences, containment, or at least 75% coverage of expected tokens. Explicit `null` expectations test non-invention.
 
@@ -125,8 +125,8 @@ Classification: 22.7%
 No-intent handling: precision 25.0%, recall 15.8%
 Extraction: 20.4%
 False positives: 32 of 38 no-intent inputs
-Latency: 106.5 ms median / 151.6 ms p95 warm
-RAM: 64.1 MB peak
+Latency: 194.1 ms median / 261.2 ms p95 warm
+RAM: 57.1 MB peak
 Confidence usefulness: not useful for accepting this schema's calls; every emitted intent scored below 0.50. A 0.75 safety gate rejects them all.
 
 Verdict: FAIL

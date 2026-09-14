@@ -1,5 +1,12 @@
 # OpenClip Technical Documentation
 
+## IntentOS experimental fork
+
+- [OpenClip reuse assessment](intentos/openclip-reuse-assessment.md)
+- [Needle runtime research](intentos/needle-runtime-research.md)
+- [Needle macOS integration](intentos/needle-macos-integration.md)
+- [IntentOS V0 manual test](intentos/manual-test.md)
+
 Welcome to the **OpenClip** technical documentation hub. OpenClip is a lightweight, high-performance macOS floating popup utility written in Swift (macOS 14.0+). It intercepts selected text across any application, presents contextual text manipulation actions (copy, cut, paste, definition lookups, web searches, custom scripts, and extensions), and executes platform side-effects seamlessly.
 
 ---

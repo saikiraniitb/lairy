@@ -58,6 +58,19 @@ final class NeedleIntentParserTests: XCTestCase {
         XCTAssertEqual(draft?.trigger, "Finance doesn't approve this")
     }
 
+    func testThresholdCanChangeWithoutRestartingWarmHelper() async throws {
+        let parser = try makeParser(response: """
+        {"ok":true,"predicted_intent_type":"do","predicted_fields":{"summary":"Review PR 182","action":"review","object":"PR 182"},"confidence":0.70,"latency_ms":80}
+        """)
+
+        let first = try await parser.parseIntent(from: "Review PR 182.", context: IntentParsingContext())
+        guard case .uncertain = first else { return XCTFail("Expected uncertain at 0.75") }
+
+        await parser.setConfidenceThreshold(0.65)
+        let second = try await parser.parseIntent(from: "Review PR 182.", context: IntentParsingContext())
+        guard case .intent = second else { return XCTFail("Expected intent at 0.65") }
+    }
+
     func testEmptyCallIsNoIntent() async throws {
         let parser = try makeParser(response: """
         {"ok":true,"predicted_intent_type":null,"predicted_fields":{},"confidence":0.91,"latency_ms":75}

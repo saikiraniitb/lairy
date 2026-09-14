@@ -46,6 +46,12 @@ final class IntentDomainTests: XCTestCase {
             IntentDeadlineResolver.resolve("next Monday", relativeTo: now, calendar: calendar),
             calendar.date(from: DateComponents(year: 2026, month: 9, day: 21))
         )
+
+        let tuesday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 15)))
+        XCTAssertEqual(
+            IntentDeadlineResolver.resolve("next Monday", relativeTo: tuesday, calendar: calendar),
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 21))
+        )
     }
 
     func testParseResultCanCarryNoIntentDiagnostics() {

@@ -34,7 +34,7 @@ public enum IntentDeadlineResolver {
             let wantedWeekday = zeroBasedWeekday + 1
             let currentWeekday = calendar.component(.weekday, from: start)
             var delta = (wantedWeekday - currentWeekday + 7) % 7
-            if delta == 0 || isExplicitNext {
+            if delta == 0 {
                 delta += 7
             }
             return calendar.date(byAdding: .day, value: delta, to: start)

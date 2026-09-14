@@ -70,6 +70,7 @@ class NeedleIntentEngine:
             "decode_tps": raw.get("decode_tps"),
             "peak_ram_mb": raw.get("peak_ram_mb", peak_process_ram_mb()),
             "validation": raw.get("validation"),
+            "validation_text": json.dumps(raw.get("validation"), ensure_ascii=False, separators=(",", ":")) if raw.get("validation") is not None else None,
             "raw_result": raw,
             "multiple_calls": len(calls) > 1,
         }

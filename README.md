@@ -12,6 +12,18 @@ OpenClip provides portions of the macOS interaction foundation and remains credi
 
 Needle/Cactus components remain credited according to their respective licenses.
 
+Current prototype notes:
+
+- [OpenClip reuse assessment](docs/intentos/openclip-reuse-assessment.md)
+- [Needle benchmark summary](tools/needle-spike/needle_benchmark_summary.md)
+- [Needle macOS integration](docs/intentos/needle-macos-integration.md)
+- [Manual Notes/Safari/Chrome/VS Code test](docs/intentos/manual-test.md)
+
+Before running the app, set up the local Needle spike as documented in
+[`tools/needle-spike/README.md`](tools/needle-spike/README.md). The current base-model benchmark
+verdict is **FAIL** for automatic use; V0 keeps its observed calls behind an uncertain/manual-edit
+preview at the default 0.75 threshold.
+
 This branch is an experimental fork. The upstream OpenClip README follows.
 
 ---

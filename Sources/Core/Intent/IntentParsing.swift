@@ -15,7 +15,6 @@ public struct IntentParsingContext: Sendable {
         self.currentDate = currentDate
     }
 }
-
 public enum IntentParseResult: Equatable, Sendable {
     case intent(IntentDraft)
     case noIntent(diagnostics: IntentParserDiagnostics? = nil)
@@ -28,4 +27,3 @@ public protocol IntentParsing: Sendable {
         context: IntentParsingContext
     ) async throws -> IntentParseResult
 }
-

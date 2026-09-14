@@ -116,4 +116,3 @@ Keep intent schema, state, persistence, validation, metrics, and UX in IntentOS.
 replaceable adapter. For V0, prefer a warm persistent helper using JSON Lines over stdin/stdout:
 there is no localhost listener, the Swift app owns process lifetime, and the interface is easy to
 replace with the official standalone runner or a native binding after validation.
-
