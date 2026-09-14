@@ -37,6 +37,9 @@ public final class IntentCaptureCoordinator: Sendable {
     }
 
     public func capture(selection: SelectionContext) async throws -> ActionResult {
+        if let needleParser = parser as? NeedleIntentParser {
+            await needleParser.setConfidenceThreshold(settingsStore.get(.intentConfidenceThreshold))
+        }
         let context = IntentParsingContext(
             sourceApplicationName: selection.sourceApp.localizedName,
             sourceApplicationBundleIdentifier: selection.sourceApp.bundleIdentifier,

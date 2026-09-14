@@ -21,22 +21,35 @@ public final class CloudIntentParser: IntentParsing, Sendable {
         }
     }
 
-    private let manager: AIServiceManager
+    private let makeProvider: @MainActor @Sendable () -> any AIProvider
+    private let parserName: @MainActor @Sendable () -> String
 
-    public init(manager: AIServiceManager = .shared) {
-        self.manager = manager
+    public convenience init() {
+        self.init(manager: .shared)
+    }
+
+    public init(manager: AIServiceManager) {
+        self.makeProvider = {
+            CloudAPIProvider(
+                apiKey: manager.cloudAPIKey,
+                model: manager.effectiveCloudModel,
+                serviceProvider: manager.cloudServiceProvider,
+                customBaseURL: manager.cloudCustomURL
+            )
+        }
+        self.parserName = { "cloud.\(manager.cloudServiceProvider.rawValue)" }
+    }
+
+    internal init(provider: any AIProvider, parserName: String) {
+        self.makeProvider = { provider }
+        self.parserName = { parserName }
     }
 
     public func parseIntent(
         from text: String,
         context: IntentParsingContext
     ) async throws -> IntentParseResult {
-        let provider = CloudAPIProvider(
-            apiKey: manager.cloudAPIKey,
-            model: manager.effectiveCloudModel,
-            serviceProvider: manager.cloudServiceProvider,
-            customBaseURL: manager.cloudCustomURL
-        )
+        let provider = makeProvider()
         let started = ProcessInfo.processInfo.systemUptime
         let output = try await provider.process(prompt: Self.prompt, text: text)
         let latency = (ProcessInfo.processInfo.systemUptime - started) * 1_000
@@ -68,7 +81,7 @@ public final class CloudIntentParser: IntentParsing, Sendable {
             sourceText: text,
             sourceApplicationName: context.sourceApplicationName,
             sourceApplicationBundleIdentifier: context.sourceApplicationBundleIdentifier,
-            parser: "cloud.\(manager.cloudServiceProvider.rawValue)",
+            parser: parserName(),
             parserConfidence: nil,
             diagnostics: diagnostics
         ))
@@ -102,4 +115,3 @@ public final class CloudIntentParser: IntentParsing, Sendable {
         return trimmed
     }
 }
-

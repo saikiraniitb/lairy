@@ -106,7 +106,7 @@ public final class IntentPreviewModel: ObservableObject {
         isBusy = true
         Task { @MainActor in
             do {
-                try await onTrack(draft, wasEdited || isEditing)
+                try await onTrack(draft, wasEdited)
                 onDismiss()
             } catch {
                 message = error.localizedDescription
@@ -132,4 +132,3 @@ public final class IntentPreviewModel: ObservableObject {
 
     public func dismiss() { onDismiss() }
 }
-

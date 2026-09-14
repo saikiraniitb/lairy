@@ -99,7 +99,8 @@ public struct IntentPreviewView: View {
 
     private var parserFooter: String {
         let confidence = model.draft.parserConfidence.map { " • \(Int(($0 * 100).rounded()))%" } ?? ""
-        return "Local • \(model.draft.parser)\(confidence)"
+        let location = model.draft.parser.hasPrefix("cloud.") ? "Cloud" : "Local"
+        return "\(location) • \(model.draft.parser)\(confidence)"
     }
 
     private func field(_ title: String, text: Binding<String>) -> some View {
@@ -143,7 +144,7 @@ private struct IntentDebugView: View {
             debugRow("PARSER", draft.parser)
             debugRow("TOOL SELECTED", diagnostics.toolSelected ?? "none")
             debugRow("RAW ARGUMENTS", diagnostics.rawArguments ?? "none")
-            debugRow("CONFIDENCE", diagnostics.confidence.map(String.init) ?? "unavailable")
+            debugRow("CONFIDENCE", diagnostics.confidence.map { String($0) } ?? "unavailable")
             debugRow("LATENCY", diagnostics.latencyMilliseconds.map { String(format: "%.1f ms", $0) } ?? "unavailable")
             debugRow("PEAK RAM", diagnostics.peakRAMMegabytes.map { String(format: "%.1f MB", $0) } ?? "unavailable")
             debugRow("VALIDATION RESULT", diagnostics.validationResult ?? "unavailable")
@@ -184,13 +185,13 @@ private struct IntentDebugView: View {
         \(diagnostics.rawArguments ?? "none")
 
         CONFIDENCE
-        \(diagnostics.confidence.map(String.init) ?? "unavailable")
+        \(diagnostics.confidence.map { String($0) } ?? "unavailable")
 
         LATENCY
-        \(diagnostics.latencyMilliseconds.map(String.init) ?? "unavailable")
+        \(diagnostics.latencyMilliseconds.map { String($0) } ?? "unavailable")
 
         PEAK RAM
-        \(diagnostics.peakRAMMegabytes.map(String.init) ?? "unavailable")
+        \(diagnostics.peakRAMMegabytes.map { String($0) } ?? "unavailable")
 
         VALIDATION RESULT
         \(diagnostics.validationResult ?? "unavailable")

@@ -161,7 +161,7 @@ private final class NeedleHelperClient: @unchecked Sendable {
 public actor NeedleIntentParser: IntentParsing {
     public static let parserName = "needle2-base"
 
-    private let confidenceThreshold: Double
+    private var confidenceThreshold: Double
     private let client: NeedleHelperClient
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -178,6 +178,10 @@ public actor NeedleIntentParser: IntentParsing {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
         self.dateFormatter = formatter
+    }
+
+    public func setConfidenceThreshold(_ value: Double) {
+        confidenceThreshold = min(max(value, 0), 1)
     }
 
     public func parseIntent(
