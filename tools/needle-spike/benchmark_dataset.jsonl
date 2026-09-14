@@ -1,0 +1,75 @@
+{"id":"do-01","category":"obvious_do","input":"I'll call Ravi tomorrow.","expected_intent_type":"do","expected_fields":{"action":"call","target":"Ravi","deadline_text":"tomorrow"}}
+{"id":"do-02","category":"obvious_do","input":"I need to review the roadmap Friday.","expected_intent_type":"do","expected_fields":{"action":"review","object":"roadmap","deadline_text":"Friday"}}
+{"id":"do-03","category":"obvious_do","input":"Send the revised deck to Priya.","expected_intent_type":"do","expected_fields":{"action":"send","object":"revised deck","target":"Priya"}}
+{"id":"do-04","category":"obvious_do","input":"Schedule a discussion with Arun next week.","expected_intent_type":"do","expected_fields":{"action":"schedule","object":["discussion","discussion with Arun"],"target":"Arun","deadline_text":"next week"}}
+{"id":"do-05","category":"obvious_do","input":"I'll send the revised presentation to Rahul by Friday.","expected_intent_type":"do","expected_fields":{"action":"send","object":"revised presentation","target":"Rahul","deadline_text":"Friday"}}
+{"id":"do-06","category":"obvious_do","input":"Review PR 182 tomorrow.","expected_intent_type":"do","expected_fields":{"action":"review","object":["PR 182","182"],"deadline_text":"tomorrow"}}
+{"id":"do-07","category":"obvious_do","input":"I need to send the Hiringhood roadmap to Arun tomorrow.","expected_intent_type":"do","expected_fields":{"action":"send","object":"Hiringhood roadmap","target":"Arun","deadline_text":"tomorrow"}}
+{"id":"do-08","category":"obvious_do","input":"Schedule a review with Arun sometime next week.","expected_intent_type":"do","expected_fields":{"action":"schedule","object":"review","target":"Arun","deadline_text":["sometime next week","next week"]}}
+{"id":"do-09","category":"obvious_do","input":"Email the signed contract to legal by 4 PM.","expected_intent_type":"do","expected_fields":{"action":"email","object":"signed contract","target":"legal","deadline_text":"4 PM"}}
+{"id":"do-10","category":"obvious_do","input":"I will book the conference room on Tuesday.","expected_intent_type":"do","expected_fields":{"action":"book","object":"conference room","deadline_text":"Tuesday","target":null}}
+{"id":"do-11","category":"obvious_do","input":"Please update the launch checklist today.","expected_intent_type":"do","expected_fields":{"action":"update","object":"launch checklist","deadline_text":"today"}}
+{"id":"do-12","category":"obvious_do","input":"Draft the Q4 hiring plan.","expected_intent_type":"do","expected_fields":{"action":"draft","object":"Q4 hiring plan","target":null,"deadline_text":null}}
+{"id":"do-13","category":"obvious_do","input":"I'll pay the design invoice before Monday.","expected_intent_type":"do","expected_fields":{"action":"pay","object":"design invoice","deadline_text":"Monday"}}
+{"id":"do-14","category":"obvious_do","input":"Call the vendor and confirm the delivery window tomorrow.","expected_intent_type":"do","expected_fields":{"action":["call","call and confirm"],"target":"vendor","deadline_text":"tomorrow"}}
+{"id":"do-15","category":"multi_action","input":"Review the document and call Arun tomorrow.","expected_intent_type":"do","expected_fields":{"summary":["Review the document and call Arun","Review document and call Arun"],"deadline_text":"tomorrow"}}
+{"id":"remember-01","category":"remember","input":"Remember that Acme prefers annual contracts.","expected_intent_type":"remember","expected_fields":{"summary":["Acme prefers annual contracts","Remember that Acme prefers annual contracts"],"subject":["Acme","annual contracts"]}}
+{"id":"remember-02","category":"remember","input":"Keep this for later: production migration happens in November.","expected_intent_type":"remember","expected_fields":{"summary":["production migration happens in November","Production migration in November"]}}
+{"id":"remember-03","category":"remember","input":"Note for later that the staging password rotates monthly.","expected_intent_type":"remember","expected_fields":{"summary":["staging password rotates monthly","The staging password rotates monthly"]}}
+{"id":"remember-04","category":"remember","input":"Save this detail: Priya's preferred timezone is IST.","expected_intent_type":"remember","expected_fields":{"summary":["Priya's preferred timezone is IST","Priya preferred timezone IST"],"subject":["Priya","timezone"]}}
+{"id":"remember-05","category":"remember","input":"Remember: the client calls the project Aurora.","expected_intent_type":"remember","expected_fields":{"summary":["the client calls the project Aurora","Client calls project Aurora"]}}
+{"id":"remember-06","category":"remember","input":"Keep in mind that invoices require a purchase order.","expected_intent_type":"remember","expected_fields":{"summary":["invoices require a purchase order","Invoices require purchase order"]}}
+{"id":"remember-07","category":"remember","input":"Please remember that Ravi is unavailable on Mondays.","expected_intent_type":"remember","expected_fields":{"summary":["Ravi is unavailable on Mondays","Remember Ravi is unavailable on Mondays"],"subject":"Ravi"}}
+{"id":"remember-08","category":"remember","input":"Store this for later: renewal pricing is confidential.","expected_intent_type":"remember","expected_fields":{"summary":["renewal pricing is confidential","Renewal pricing confidential"]}}
+{"id":"remember-09","category":"remember","input":"Make a note that the API limit is 500 requests per minute.","expected_intent_type":"remember","expected_fields":{"summary":["API limit is 500 requests per minute","The API limit is 500 requests per minute"]}}
+{"id":"remember-10","category":"remember","input":"Don't forget that the demo account expires in October.","expected_intent_type":"remember","expected_fields":{"summary":["demo account expires in October","The demo account expires in October"]}}
+{"id":"follow-01","category":"follow_up","input":"If he doesn't reply by Wednesday, follow up.","expected_intent_type":"follow_up","expected_fields":{"action":"follow up","deadline_text":"Wednesday","trigger":["he doesn't reply","no reply by Wednesday"]}}
+{"id":"follow-02","category":"follow_up","input":"Once Finance approves this, send it to the client.","expected_intent_type":"follow_up","expected_fields":{"action":"send","target":"client","trigger":["Finance approves this","Finance approval"]}}
+{"id":"follow-03","category":"follow_up","input":"When Ravi sends the numbers, update the forecast.","expected_intent_type":"follow_up","expected_fields":{"action":"update","object":"forecast","trigger":["Ravi sends the numbers","Ravi sends numbers"]}}
+{"id":"follow-04","category":"follow_up","input":"Check again next Monday.","expected_intent_type":"follow_up","expected_fields":{"action":"check","deadline_text":"next Monday"}}
+{"id":"follow-05","category":"follow_up","input":"If Finance doesn't approve this by Wednesday, follow up with Priya.","expected_intent_type":"follow_up","expected_fields":{"action":"follow up","target":"Priya","deadline_text":"Wednesday","trigger":["Finance doesn't approve this","lack of Finance approval"]}}
+{"id":"follow-06","category":"multi_action","input":"Once Ravi sends the numbers, update the forecast and send it to Finance.","expected_intent_type":"follow_up","expected_fields":{"summary":["update the forecast and send it to Finance","Update forecast and send to Finance"],"trigger":["Ravi sends the numbers","Ravi sends numbers"],"target":"Finance"}}
+{"id":"follow-07","category":"multi_action","input":"When Priya replies, update the deck and forward it to leadership.","expected_intent_type":"follow_up","expected_fields":{"summary":["update the deck and forward it to leadership","Update deck and forward to leadership"],"trigger":["Priya replies","reply from Priya"],"target":"leadership"}}
+{"id":"follow-08","category":"follow_up","input":"After the build finishes, send the test report to Maya.","expected_intent_type":"follow_up","expected_fields":{"action":"send","object":"test report","target":"Maya","trigger":["build finishes","the build finishes"]}}
+{"id":"follow-09","category":"follow_up","input":"If the vendor has not responded by Friday, call them.","expected_intent_type":"follow_up","expected_fields":{"action":"call","target":"vendor","deadline_text":"Friday","trigger":["vendor has not responded","no vendor response"]}}
+{"id":"follow-10","category":"follow_up","input":"When the contract arrives, review the termination clause.","expected_intent_type":"follow_up","expected_fields":{"action":"review","object":"termination clause","trigger":["contract arrives","the contract arrives"]}}
+{"id":"follow-11","category":"follow_up","input":"Revisit the incident after the postmortem next week.","expected_intent_type":"follow_up","expected_fields":{"action":"revisit","object":"incident","deadline_text":"next week","trigger":["after the postmortem","postmortem"]}}
+{"id":"follow-12","category":"follow_up","input":"As soon as Priya shares the draft, add the pricing section.","expected_intent_type":"follow_up","expected_fields":{"action":"add","object":"pricing section","trigger":["Priya shares the draft","draft from Priya"]}}
+{"id":"ordinary-01","category":"no_intent","input":"The weather is good today.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-02","category":"no_intent","input":"Arun lives in Hyderabad.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-03","category":"no_intent","input":"This presentation looks much better.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-04","category":"no_intent","input":"Friday's meeting went well.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-05","category":"no_intent","input":"The office closes at six.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-06","category":"no_intent","input":"Our roadmap has three workstreams.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-07","category":"no_intent","input":"Priya likes the blue version.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-08","category":"no_intent","input":"The document is in the shared folder.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-09","category":"no_intent","input":"We usually meet on Tuesdays.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-10","category":"no_intent","input":"That was a useful discussion.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-11","category":"no_intent","input":"The revised design uses less memory.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ordinary-12","category":"no_intent","input":"September has been unusually busy.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-01","category":"negation","input":"Don't remind me about this.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-02","category":"negation","input":"I don't need to call Rahul anymore.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-03","category":"negation","input":"Ignore the previous task.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-04","category":"negation","input":"We decided not to send the proposal.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-05","category":"negation","input":"Don't send this to Finance.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-06","category":"negation","input":"No need to schedule another review.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-07","category":"negation","input":"Cancel the idea of calling Arun tomorrow.","expected_intent_type":null,"expected_fields":{}}
+{"id":"negation-08","category":"negation","input":"I won't follow up with the vendor.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-01","category":"third_party","input":"Rahul said he'll send me the document Friday.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-02","category":"third_party","input":"Priya needs to call Ravi tomorrow.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-03","category":"third_party","input":"Finance will review this Wednesday.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-04","category":"third_party","input":"Arun plans to schedule the kickoff next week.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-05","category":"third_party","input":"The vendor promised to email the invoice today.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-06","category":"third_party","input":"Maya has to update the dashboard by Monday.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-07","category":"third_party","input":"Legal is going to send Priya the contract.","expected_intent_type":null,"expected_fields":{}}
+{"id":"thirdparty-08","category":"third_party","input":"Ravi should check the numbers again tomorrow.","expected_intent_type":null,"expected_fields":{}}
+{"id":"past-01","category":"completed","input":"I sent the deck yesterday.","expected_intent_type":null,"expected_fields":{}}
+{"id":"past-02","category":"completed","input":"We finished the migration last Friday.","expected_intent_type":null,"expected_fields":{}}
+{"id":"past-03","category":"completed","input":"Rahul already reviewed the document.","expected_intent_type":null,"expected_fields":{}}
+{"id":"past-04","category":"completed","input":"I already sent Rahul the deck yesterday.","expected_intent_type":null,"expected_fields":{}}
+{"id":"past-05","category":"completed","input":"The team completed the security review this morning.","expected_intent_type":null,"expected_fields":{}}
+{"id":"past-06","category":"completed","input":"I called the client and resolved the issue.","expected_intent_type":null,"expected_fields":{}}
+{"id":"ambiguous-01","category":"ambiguous","input":"Maybe we should revisit pricing sometime.","expected_intent_type":null,"acceptable_intent_types":[null,"do"],"max_confidence_if_intent":0.74,"expected_fields":{}}
+{"id":"ambiguous-02","category":"ambiguous","input":"Might be worth calling Arun.","expected_intent_type":null,"acceptable_intent_types":[null,"do"],"max_confidence_if_intent":0.74,"expected_fields":{}}
+{"id":"ambiguous-03","category":"ambiguous","input":"We probably ought to review this later.","expected_intent_type":null,"acceptable_intent_types":[null,"do","follow_up"],"max_confidence_if_intent":0.74,"expected_fields":{}}
+{"id":"ambiguous-04","category":"ambiguous","input":"Could follow up next week.","expected_intent_type":null,"acceptable_intent_types":[null,"follow_up"],"max_confidence_if_intent":0.74,"expected_fields":{}}

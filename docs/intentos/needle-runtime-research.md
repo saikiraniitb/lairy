@@ -25,14 +25,22 @@ model and does not fine-tune in V0.
 ## Deployment surfaces found
 
 1. Python package with a native generation-specific engine loaded behind its API.
-2. Official `needle download macos-arm64 --generation 2` standalone artifact.
+2. Official `needle download macos-arm64 --generation 2` standalone artifact: a 14.61 MB ad-hoc
+   signed ARM64 executable plus a 14.21 MB static library and four-function C header. The executable
+   supports one-shot JSON output or a persistent unauthenticated HTTP server; it does not expose a
+   documented stdin/stdout streaming mode.
 3. Official WebAssembly component and WIT contract.
 4. Native generation-specific library override via `NEEDLE2_LIB_PATH`.
 
-The standalone artifact's machine-readable contract and redistributable contents still require
-inspection after download. Until validated, the reliable prototype integration is a persistent,
-telemetry-disabled Python helper with JSON Lines over pipes. It initializes one agent and resets its
-conversation between independent selections; Swift never launches one interpreter per inference.
+The Apache-2.0 repository license permits redistribution subject to its notice/license obligations,
+but the downloaded folder did not include a separate license/NOTICE file. The executable is only
+ad-hoc linker-signed and would have to be included in the app's inside-out signing process. Because
+the abstract IntentOS benchmark currently fails and committing a 14 MB opaque engine is premature,
+V0 development uses a persistent, telemetry-disabled Python helper with JSON Lines over pipes. It
+initializes one agent and resets its conversation between independent selections; Swift never
+launches one interpreter per inference. A production candidate should either link the official
+static C library (no `dlopen` entitlement) or bundle and properly sign the official runner after its
+local HTTP exposure is hardened.
 
 ## Primary sources
 
@@ -40,4 +48,3 @@ conversation between independent selections; Swift never launches one interprete
 - <https://github.com/cactus-compute/needle/blob/main/doc/apis.md>
 - <https://github.com/cactus-compute/needle/blob/main/doc/finetuning.md>
 - <https://github.com/cactus-compute/needle/blob/main/LICENSE>
-

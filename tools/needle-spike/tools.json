@@ -1,0 +1,110 @@
+[
+  {
+    "name": "remember",
+    "description": "Save a note only when the speaker explicitly says to remember, keep, note, save, or store information for later. An ordinary stated fact is not a request and returns no call.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "The fact to remember, copied word for word without the remember request"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Main named subject copied word for word; include only when clearly stated"
+        }
+      },
+      "required": ["summary"]
+    }
+  },
+  {
+    "name": "do",
+    "description": "Add a task for the speaker to do. Use for a first-person future commitment or need, or a direct imperative. A dated task is still do. Negated, cancelled, completed, speculative, descriptive, and another person's actions return no call.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "The complete task phrase copied word for word, without I will, I need to, or please"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Main action verb copied word for word"
+        },
+        "object": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Thing acted on copied word for word; include only when stated"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Recipient or person the action is directed to, copied word for word; include only when stated"
+        },
+        "deadline_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Date or time phrase copied word for word; never resolve it; include only when stated"
+        }
+      },
+      "required": ["summary", "action"]
+    }
+  },
+  {
+    "name": "follow_up",
+    "description": "Add one task for the speaker that is gated by if, when, once, after, receiving something, missing a response, or a future check. Also use for explicit follow up or check again tasks. Negated, completed, speculative, descriptive, and another person's actions return no call.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "description": "The complete action after the condition, copied word for word"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Main action verb or combined verb phrase copied word for word"
+        },
+        "object": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Thing acted on copied word for word; include only when stated"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Recipient or person the action is directed to, copied word for word; include only when stated"
+        },
+        "deadline_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Date or time phrase copied word for word; never resolve it; include only when stated"
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "The if, when, once, after, receipt, or missing-response condition copied word for word; include only when stated"
+        }
+      },
+      "required": ["summary", "action"]
+    }
+  }
+]
