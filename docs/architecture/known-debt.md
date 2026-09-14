@@ -20,6 +20,8 @@ areas; stale debt notes are worse than none.
   `PopupWindowController`'s existing mode state machine.
 - IntentOS user-facing strings have English source values but the upstream translation catalog has
   not yet received reviewed translations for the experimental UI.
+- Automatic Sparkle updates are disabled for the fork. The remaining manual update command still
+  points at OpenClip upstream and must not ship until it is removed or given an IntentOS feed.
 
 ---
 

@@ -68,8 +68,9 @@ Assessment basis: OpenClip `dcb47ac` (`main`, inspected 2026-09-14).
   helper is safer than in-process `dlopen` for V0.
 - **App sandbox:** OpenClip is currently not App-Sandboxed. Its hardened-runtime entitlement set is
   intentionally minimal; spawning a bundled helper does not itself require adding an entitlement.
-- **Updates:** the upstream Sparkle feed must not update an IntentOS fork to an OpenClip release.
-  It must be disabled or replaced before distribution.
+- **Updates:** automatic Sparkle checks/downloads are disabled and the prototype uses a distinct
+  bundle identifier. The remaining manual upstream update command must be removed or pointed at an
+  IntentOS feed before distribution.
 - **Eight-gigabyte target:** model installation, warm helper lifetime, and diagnostics must remain
   bounded. No Python training stack belongs in the shipped app.
 
