@@ -12,6 +12,10 @@ tools/needle-spike/.cache/
 tools/needle-spike/runtime/
 tools/needle-spike/*.whl
 tools/needle-spike/__pycache__/
+
+# Intent Intelligence eval results: real captured text + raw model output, never committed
+tools/intent-intelligence-eval/results.jsonl
+tools/intent-intelligence-eval/__pycache__/
 xcuserdata/
 build/
 *.profraw
