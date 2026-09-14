@@ -78,6 +78,12 @@ public struct IntentUnderstanding: Codable, Equatable, Sendable {
     public var subject: String?
     public var target: String?
 
+    /// Who asked for this action, as the provider understood it from the text alone. Never
+    /// trusted directly — `GeminiIntentParser` overrides this with `IntentSourceContext.sender`
+    /// whenever a trusted sender exists, and the grounding validator otherwise requires it to
+    /// match the source text before it survives at all.
+    public var requestedBy: String?
+
     public var requestedOutcome: String?
 
     public var temporalState: TemporalState?
@@ -106,6 +112,7 @@ public struct IntentUnderstanding: Codable, Equatable, Sendable {
         requestedAction: String? = nil,
         subject: String? = nil,
         target: String? = nil,
+        requestedBy: String? = nil,
         requestedOutcome: String? = nil,
         temporalState: TemporalState? = nil,
         polarity: Polarity? = nil,
@@ -125,6 +132,7 @@ public struct IntentUnderstanding: Codable, Equatable, Sendable {
         self.requestedAction = requestedAction
         self.subject = subject
         self.target = target
+        self.requestedBy = requestedBy
         self.requestedOutcome = requestedOutcome
         self.temporalState = temporalState
         self.polarity = polarity

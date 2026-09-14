@@ -92,4 +92,71 @@ final class IntentGroundingValidatorTests: XCTestCase {
         let result = IntentGroundingValidator.validate(IntentUnderstanding(hasTrackableIntent: true), sourceText: "Please review this.")
         XCTAssertTrue(result.resources.isEmpty)
     }
+
+    // MARK: - Source context grounding (requestedBy / trusted sender)
+
+    private let realCaseSource = """
+    Hi @Sai Kiran Cherakam Sir, This is the updated landing page for Employer with our latest \
+    color pallet. Please have a look and let me know any changes that need to be made. Thankyou
+    """
+
+    /// The exact real case: a trusted sender always wins over an @mention the model may have
+    /// latched onto inside the message body, even when the model's own guess also happens to
+    /// verbatim-match text elsewhere.
+    func testTrustedSenderOverridesProvidersOwnGuess() {
+        let context = IntentSourceContext(sender: "Sai Siddeeswara Naidu Gurram", direction: .incoming, selectedText: realCaseSource)
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, requestedBy: "Sai Kiran Cherakam")
+
+        let result = IntentGroundingValidator.validate(proposed, sourceText: realCaseSource, sourceContext: context)
+
+        XCTAssertEqual(result.understanding.requestedBy, "Sai Siddeeswara Naidu Gurram")
+        XCTAssertTrue(result.rejections.contains { $0.field == "requestedBy" && $0.value == "Sai Kiran Cherakam" })
+    }
+
+    /// A trusted sender is valid even though it never appears anywhere in the selected text.
+    func testTrustedSenderNotInSourceTextStillGrounds() {
+        let context = IntentSourceContext(sender: "Sai Siddeeswara Naidu Gurram", direction: .incoming, selectedText: realCaseSource)
+        let proposed = IntentUnderstanding(hasTrackableIntent: true)
+
+        let result = IntentGroundingValidator.validate(proposed, sourceText: realCaseSource, sourceContext: context)
+
+        XCTAssertEqual(result.understanding.requestedBy, "Sai Siddeeswara Naidu Gurram")
+        XCTAssertFalse(realCaseSource.contains("Sai Siddeeswara"))
+    }
+
+    /// No trusted sender at all -> requestedBy stays null rather than trusting the model's guess,
+    /// unless that guess is itself grounded in the source text.
+    func testUnknownSenderStaysNull() {
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, requestedBy: "Someone")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: "Please review this.", sourceContext: nil)
+        XCTAssertNil(result.understanding.requestedBy)
+        XCTAssertTrue(result.rejections.contains { $0.field == "requestedBy" })
+    }
+
+    /// A person named by the model that appears in neither the source text nor trusted context is
+    /// removed, even when a (different) trusted sender exists.
+    func testProviderPersonAbsentFromBothSourcesIsRemoved() {
+        let context = IntentSourceContext(sender: "Sai Siddeeswara Naidu Gurram", direction: .incoming, selectedText: realCaseSource)
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, target: "Completely Invented Person")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: realCaseSource, sourceContext: context)
+        XCTAssertNil(result.understanding.target)
+        XCTAssertTrue(result.rejections.contains { $0.field == "target" && $0.value == "Completely Invented Person" })
+    }
+
+    /// A name grounded via trusted `conversationTitle` (not just `sender`) also survives for
+    /// non-requestedBy person fields.
+    func testWaitingForGroundedByConversationTitle() {
+        let context = IntentSourceContext(conversationTitle: "Ravi Kumar", selectedText: "Can you check with him?")
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, waitingFor: "Ravi Kumar")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: "Can you check with him?", sourceContext: context)
+        XCTAssertEqual(result.understanding.waitingFor, "Ravi Kumar")
+    }
+
+    /// No regression: existing resource/date grounding is unaffected by adding sourceContext.
+    func testExistingResourceAndDateGroundingUnaffectedBySourceContext() {
+        let context = IntentSourceContext(sender: "Someone Else", direction: .incoming, selectedText: "Please review this tomorrow.")
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, deadlineText: "tomorrow")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: "Please review this tomorrow.", sourceContext: context)
+        XCTAssertEqual(result.understanding.deadlineText, "tomorrow")
+    }
 }
