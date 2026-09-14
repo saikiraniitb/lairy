@@ -15,7 +15,7 @@ public struct IntentPreviewView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(model.isUncertain ? "IntentOS isn't sure about this." : model.draft.type.rawValue.uppercased())
+                    Text(model.isUncertain ? "IntentOS isn't sure about this." : typeLabel(model.draft.type))
                         .font(.headline)
                     if model.isUncertain {
                         Text("Treat this as a possible intent. Edit it before tracking or explicitly try Cloud AI.")
@@ -31,32 +31,53 @@ public struct IntentPreviewView: View {
 
             if model.isEditing {
                 Picker("Type", selection: binding(\.type)) {
+                    Text("ACTION").tag(IntentType.action)
+                    Text("REQUEST").tag(IntentType.request)
+                    Text("WAITING").tag(IntentType.waiting)
                     Text("REMEMBER").tag(IntentType.remember)
-                    Text("DO").tag(IntentType.doAction)
-                    Text("FOLLOW UP").tag(IntentType.followUp)
                 }
                 .pickerStyle(.segmented)
             }
 
-            field("Summary", text: binding(\.summary))
+            field(model.draft.type == .remember ? "Summary" : "Next action", text: binding(\.summary))
             if model.draft.type == .remember {
                 optionalField("Subject", keyPath: \.subject)
             } else {
-                optionalField("Action", keyPath: \.action)
-                optionalField("Object", keyPath: \.object)
-                optionalField("To", keyPath: \.target)
-                optionalField("Deadline", keyPath: \.deadlineText)
-                if model.draft.type == .followUp {
-                    optionalField("Waiting for", keyPath: \.trigger)
+                if model.isEditing || !(model.draft.deadlineText ?? "").isEmpty {
+                    optionalField("Deadline", keyPath: \.deadlineText)
+                } else {
+                    labeledRow("Deadline", value: "No deadline specified")
+                }
+                if model.draft.type == .waiting || model.draft.type == .request || model.draft.waitingFor != nil {
+                    optionalField("Waiting for", keyPath: \.waitingFor)
+                }
+                if model.isEditing {
+                    optionalField("Subject", keyPath: \.subject)
+                    optionalField("To", keyPath: \.target)
+                }
+            }
+
+            if !model.draft.resources.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(model.draft.resources.enumerated()), id: \.offset) { _, resource in
+                        Link(destination: URL(string: resource.url) ?? URL(string: "about:blank")!) {
+                            Label(resourceButtonTitle(resource), systemImage: "arrow.up.forward.app")
+                        }
+                        .font(.caption)
+                    }
                 }
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("Source").font(.caption).foregroundStyle(.secondary)
-                Text(model.draft.sourceText)
-                    .font(.caption)
-                    .lineLimit(3)
-                    .textSelection(.enabled)
+                Text(model.draft.sourceApplicationName ?? "Unknown app")
+                    .font(.caption.bold())
+                if model.isEditing {
+                    Text(model.draft.sourceText)
+                        .font(.caption)
+                        .lineLimit(3)
+                        .textSelection(.enabled)
+                }
             }
 
             if let message = model.message {
@@ -97,9 +118,40 @@ public struct IntentPreviewView: View {
         .onExitCommand(perform: model.dismiss)
     }
 
+    private func typeLabel(_ type: IntentType) -> String {
+        switch type {
+        case .action: return "ACTION"
+        case .request: return "REQUEST"
+        case .waiting: return "WAITING"
+        case .remember: return "REMEMBER"
+        }
+    }
+
+    private func resourceButtonTitle(_ resource: IntentResource) -> String {
+        let name: String
+        switch resource.type {
+        case .figma: name = "Figma"
+        case .github: name = "GitHub"
+        case .googleDocs: name = "Google Docs"
+        case .googleDrive: name = "Google Drive"
+        case .jira: name = "Jira"
+        case .notion: name = "Notion"
+        case .genericURL: name = "Link"
+        }
+        return "Open \(resource.label ?? name)"
+    }
+
+    private func labeledRow(_ title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(.caption).foregroundStyle(.secondary).frame(width: 72, alignment: .leading)
+            Text(value).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private var parserFooter: String {
         let confidence = model.draft.parserConfidence.map { " • \(Int(($0 * 100).rounded()))%" } ?? ""
-        let location = model.draft.parser.hasPrefix("cloud.") ? "Cloud" : "Local"
+        let isCloud = model.draft.parser.hasPrefix("cloud.") || model.draft.parser.hasPrefix("\(GeminiIntentParser.parserPrefix).")
+        let location = isCloud ? "Cloud" : "Local"
         return "\(location) • \(model.draft.parser)\(confidence)"
     }
 
@@ -140,14 +192,18 @@ private struct IntentDebugView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            debugRow("SOURCE TEXT", draft.sourceText)
             debugRow("SOURCE APP", [draft.sourceApplicationName, draft.sourceApplicationBundleIdentifier].compactMap { $0 }.joined(separator: " • "))
             debugRow("PARSER", draft.parser)
-            debugRow("TOOL SELECTED", diagnostics.toolSelected ?? "none")
-            debugRow("RAW ARGUMENTS", diagnostics.rawArguments ?? "none")
+            debugRow("MODEL", modelIdentifier)
+            debugRow("RAW STRUCTURED OUTPUT", diagnostics.rawResponse ?? "unavailable")
+            debugRow("GROUNDING EVIDENCE", diagnostics.rawArguments ?? "none")
+            debugRow("FIELDS REMOVED BY VALIDATOR", diagnostics.validationResult ?? "unavailable")
             debugRow("CONFIDENCE", diagnostics.confidence.map { String($0) } ?? "unavailable")
             debugRow("LATENCY", diagnostics.latencyMilliseconds.map { String(format: "%.1f ms", $0) } ?? "unavailable")
-            debugRow("PEAK RAM", diagnostics.peakRAMMegabytes.map { String(format: "%.1f MB", $0) } ?? "unavailable")
-            debugRow("VALIDATION RESULT", diagnostics.validationResult ?? "unavailable")
+            if let peakRAM = diagnostics.peakRAMMegabytes {
+                debugRow("PEAK RAM", String(format: "%.1f MB", peakRAM))
+            }
             debugRow("NORMALIZED INTENT", normalizedDraft)
             Button("Copy Debug Information") {
                 NSPasteboard.general.clearContents()
@@ -155,6 +211,13 @@ private struct IntentDebugView: View {
             }
         }
         .textSelection(.enabled)
+    }
+
+    /// Everything after the first "." in `parser` (e.g. "gemini.gemini-3.8-flash" → the model id;
+    /// Needle's "needle2-base" has no dot, so it stands for itself).
+    private var modelIdentifier: String {
+        guard let dotIndex = draft.parser.firstIndex(of: ".") else { return draft.parser }
+        return String(draft.parser[draft.parser.index(after: dotIndex)...])
     }
 
     private func debugRow(_ title: String, _ value: String) -> some View {
@@ -175,26 +238,23 @@ private struct IntentDebugView: View {
         PARSER
         \(draft.parser)
 
-        NEEDLE RAW RESPONSE
+        MODEL
+        \(modelIdentifier)
+
+        RAW STRUCTURED OUTPUT
         \(diagnostics.rawResponse ?? "unavailable")
 
-        TOOL SELECTED
-        \(diagnostics.toolSelected ?? "none")
-
-        RAW ARGUMENTS
+        GROUNDING EVIDENCE
         \(diagnostics.rawArguments ?? "none")
+
+        FIELDS REMOVED BY VALIDATOR
+        \(diagnostics.validationResult ?? "unavailable")
 
         CONFIDENCE
         \(diagnostics.confidence.map { String($0) } ?? "unavailable")
 
         LATENCY
         \(diagnostics.latencyMilliseconds.map { String($0) } ?? "unavailable")
-
-        PEAK RAM
-        \(diagnostics.peakRAMMegabytes.map { String($0) } ?? "unavailable")
-
-        VALIDATION RESULT
-        \(diagnostics.validationResult ?? "unavailable")
 
         NORMALIZED INTENT
         \(normalizedDraft)
