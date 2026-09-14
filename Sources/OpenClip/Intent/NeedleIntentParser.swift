@@ -26,6 +26,7 @@ private struct NeedleHelperResponse: Decodable, Sendable {
     let decodeTokensPerSecond: Double?
     let peakRAMMegabytes: Double?
     let multipleCalls: Bool?
+    let validationText: String?
 
     enum CodingKeys: String, CodingKey {
         case ok, error, confidence
@@ -36,6 +37,7 @@ private struct NeedleHelperResponse: Decodable, Sendable {
         case decodeTokensPerSecond = "decode_tps"
         case peakRAMMegabytes = "peak_ram_mb"
         case multipleCalls = "multiple_calls"
+        case validationText = "validation_text"
     }
 }
 
@@ -214,7 +216,10 @@ public actor NeedleIntentParser: IntentParsing {
             prefillTokensPerSecond: response.prefillTokensPerSecond,
             decodeTokensPerSecond: response.decodeTokensPerSecond,
             peakRAMMegabytes: response.peakRAMMegabytes,
-            validationResult: response.multipleCalls == true ? "multiple calls; first retained" : "single primary call"
+            validationResult: [
+                response.multipleCalls == true ? "multiple calls; first retained" : "single primary call",
+                response.validationText
+            ].compactMap { $0 }.joined(separator: "; ")
         )
 
         guard let rawType = response.predictedIntentType else {
@@ -229,6 +234,7 @@ public actor NeedleIntentParser: IntentParsing {
         let draft = IntentDraft(
             type: type,
             summary: Self.nonEmpty(fields["summary"]) ?? source,
+            subject: Self.nonEmpty(fields["subject"]),
             action: Self.nonEmpty(fields["action"]),
             object: Self.nonEmpty(fields["object"]),
             target: Self.nonEmpty(fields["target"]),

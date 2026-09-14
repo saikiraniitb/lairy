@@ -120,6 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             ActionCoordinator.shared.register(action: OpenURLAction())
             ActionCoordinator.shared.register(action: RevealInFinderAction())
             ActionCoordinator.shared.register(action: CompletionAction())
+            ActionCoordinator.shared.register(action: CaptureIntentAction())
             // Register each AI preset as an individual action (palette + Preferences → Actions).
             aiActionSync = AIActionSync.shared
 

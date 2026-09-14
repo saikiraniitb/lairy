@@ -49,6 +49,7 @@ public struct IntentParserDiagnostics: Codable, Equatable, Sendable {
 public struct IntentDraft: Codable, Equatable, Sendable {
     public var type: IntentType
     public var summary: String
+    public var subject: String?
     public var action: String?
     public var object: String?
     public var target: String?
@@ -67,6 +68,7 @@ public struct IntentDraft: Codable, Equatable, Sendable {
     public init(
         type: IntentType,
         summary: String,
+        subject: String? = nil,
         action: String? = nil,
         object: String? = nil,
         target: String? = nil,
@@ -82,6 +84,7 @@ public struct IntentDraft: Codable, Equatable, Sendable {
     ) {
         self.type = type
         self.summary = summary
+        self.subject = subject
         self.action = action
         self.object = object
         self.target = target
@@ -103,6 +106,7 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
     public var type: IntentType
     public var status: IntentStatus
     public var summary: String
+    public var subject: String?
     public var action: String?
     public var object: String?
     public var target: String?
@@ -126,6 +130,7 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         type: IntentType,
         status: IntentStatus = .open,
         summary: String,
+        subject: String? = nil,
         action: String? = nil,
         object: String? = nil,
         target: String? = nil,
@@ -145,6 +150,7 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         self.type = type
         self.status = status
         self.summary = summary
+        self.subject = subject
         self.action = action
         self.object = object
         self.target = target
@@ -166,6 +172,7 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
             id: id,
             type: draft.type,
             summary: draft.summary,
+            subject: draft.subject,
             action: draft.action,
             object: draft.object,
             target: draft.target,
@@ -183,4 +190,3 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         )
     }
 }
-

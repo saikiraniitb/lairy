@@ -85,6 +85,10 @@ public extension SettingKey where Value == Bool {
     static var automaticallyChecksForUpdates: SettingKey<Bool> { SettingKey<Bool>("automaticallyChecksForUpdates", defaultValue: true) }
     static var automaticallyDownloadsUpdates: SettingKey<Bool> { SettingKey<Bool>("automaticallyDownloadsUpdates", defaultValue: true) }
     static var notifyOnUpdate: SettingKey<Bool> { SettingKey<Bool>("notifyOnUpdate", defaultValue: true) }
+    /// Cloud parsing is never attempted unless enabled and the user clicks Try Cloud AI.
+    static var intentCloudFallbackEnabled: SettingKey<Bool> { SettingKey<Bool>("intent.cloudFallbackEnabled", defaultValue: false) }
+    /// Reveals raw parser artifacts and source text on explicit IntentOS debug surfaces.
+    static var intentDebugModeEnabled: SettingKey<Bool> { SettingKey<Bool>("intent.debugModeEnabled", defaultValue: false) }
 }
 
 public extension SettingKey where Value == Int {
@@ -101,6 +105,8 @@ public extension SettingKey where Value == Double {
     static var mouseHoldDuration: SettingKey<Double> { SettingKey<Double>("mouseHoldDuration", defaultValue: 0.3) }
     /// Timestamp (seconds since 1970) until which OpenClip is temporarily paused (0.0 = not paused).
     static var pauseUntilTimestamp: SettingKey<Double> { SettingKey<Double>("pauseUntilTimestamp", defaultValue: 0.0) }
+    /// Safety gate for parser calls. The base-model benchmark supports no lower acceptance value.
+    static var intentConfidenceThreshold: SettingKey<Double> { SettingKey<Double>("intent.confidenceThreshold", defaultValue: 0.75) }
 }
 
 public extension SettingKey where Value == Data? {
@@ -139,4 +145,3 @@ public extension SettingKey where Value == String {
         SettingKey<String>("action.\(actionID).option.\(optionID)", defaultValue: defaultValue)
     }
 }
-

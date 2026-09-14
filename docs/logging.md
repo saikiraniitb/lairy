@@ -63,6 +63,7 @@ Each subsystem owns a dedicated `LogChannel` property on `Log` under the `com.op
 | `selection`      | `SelectionRetrievalCoordinator` + strategies / `MacSelectionMonitor` (gate decisions, mode routing, AX + pasteboard + keyboard retrieval); `PasteAvailabilityProbe` limit and time-limit results |
 | `extensions`     | `ExtensionManager`, remote installer, extension store/onboarding install & uninstall, **manifest decode/validation rejections** |
 | `ai`             | AI providers and preset persistence                         |
+| `intent`         | Intent parsing lifecycle and privacy-safe local metrics; never source text |
 | `permissions`    | TCC / accessibility permission management                   |
 | `icons`          | icon fetching/caching (`UnifiedIconProvider`, icon picker)  |
 | `updates`        | Sparkle software updates, background check events, update notifications |

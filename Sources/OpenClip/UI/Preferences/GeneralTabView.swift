@@ -20,6 +20,9 @@ struct GeneralTab: View {
     @State private var isMouseHoldEnabled: Bool
     @State private var primaryBehavior: String
     @State private var secondaryBehavior: String
+    @State private var intentConfidenceThreshold: Double
+    @State private var intentCloudFallbackEnabled: Bool
+    @State private var intentDebugModeEnabled: Bool
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     @ObservedObject private var permissionManager = PermissionManager.shared
 
@@ -29,6 +32,9 @@ struct GeneralTab: View {
         _isMouseHoldEnabled = State(initialValue: DefaultSettingsStore.shared.get(.isMouseHoldEnabled))
         _primaryBehavior = State(initialValue: DefaultSettingsStore.shared.get(.primaryClickBehavior))
         _secondaryBehavior = State(initialValue: DefaultSettingsStore.shared.get(.secondaryClickBehavior))
+        _intentConfidenceThreshold = State(initialValue: DefaultSettingsStore.shared.get(.intentConfidenceThreshold))
+        _intentCloudFallbackEnabled = State(initialValue: DefaultSettingsStore.shared.get(.intentCloudFallbackEnabled))
+        _intentDebugModeEnabled = State(initialValue: DefaultSettingsStore.shared.get(.intentDebugModeEnabled))
     }
     
     var body: some View {
@@ -141,6 +147,45 @@ struct GeneralTab: View {
                             permissionManager.requestAccessibilityPermission(proactivelyResetStaleTCC: shouldReset)
                         }
                     }
+                }
+            }
+
+            Section("IntentOS Developer") {
+                SettingsRow(
+                    title: "Needle confidence threshold",
+                    subtitle: "Lower-confidence calls are shown as uncertain and are never saved automatically.",
+                    systemImage: "gauge.with.dots.needle.67percent"
+                ) {
+                    HStack {
+                        Slider(value: $intentConfidenceThreshold, in: 0.5...0.99, step: 0.01)
+                            .frame(width: 150)
+                        Text(intentConfidenceThreshold, format: .number.precision(.fractionLength(2)))
+                            .monospacedDigit()
+                            .frame(width: 38)
+                    }
+                    .onChange(of: intentConfidenceThreshold) { _, value in
+                        DefaultSettingsStore.shared.set(.intentConfidenceThreshold, value: value)
+                    }
+                }
+
+                SettingsToggleRow(
+                    title: "Cloud fallback",
+                    subtitle: "Off by default. Selected text can leave the Mac only after you click Try Cloud AI.",
+                    systemImage: "cloud",
+                    isOn: $intentCloudFallbackEnabled
+                )
+                .onChange(of: intentCloudFallbackEnabled) { _, value in
+                    DefaultSettingsStore.shared.set(.intentCloudFallbackEnabled, value: value)
+                }
+
+                SettingsToggleRow(
+                    title: "Intent debug details",
+                    subtitle: "Show source text and raw local-parser artifacts in explicit debug views.",
+                    systemImage: "ladybug",
+                    isOn: $intentDebugModeEnabled
+                )
+                .onChange(of: intentDebugModeEnabled) { _, value in
+                    DefaultSettingsStore.shared.set(.intentDebugModeEnabled, value: value)
                 }
             }
         }
