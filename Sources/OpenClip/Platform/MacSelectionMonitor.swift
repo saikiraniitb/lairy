@@ -459,6 +459,13 @@ internal final class MacSelectionMonitor: SelectionMonitoring {
         probeTask: Task<Bool?, Never>?
     ) async {
         guard !Task.isCancelled else { return }
+#if DEBUG
+        Log.selection.debug("INTENTOS_SELECTION sourceApp=\(appIdentity.localizedName ?? "unknown", privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION bundleID=\(appIdentity.bundleIdentifier ?? "unknown", privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION retrievalCoordinatorFound=\(result != nil, privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION textLength=\(result?.text.count ?? 0, privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION bounds=\(String(describing: result?.bounds), privacy: .public)")
+#endif
         guard let result,
               TextSanitizer.isSubstantial(result.text),
               result.text.utf8.count <= Constants.maxTextLength else {

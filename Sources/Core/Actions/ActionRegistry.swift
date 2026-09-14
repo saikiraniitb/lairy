@@ -378,7 +378,7 @@ public final class ActionRegistry: ObservableObject, Sendable {
         }
         let customGroupMemberToGroupID = customGroupMembership()
 
-        return actions.filter { action in
+        let catalog = actions.filter { action in
             if action.chrome.launchesAI || ActionIdentity.isCompletionPseudoAction(action) || action is GatedExtensionAction {
                 return false
             }
@@ -390,6 +390,64 @@ public final class ActionRegistry: ObservableObject, Sendable {
             }
             return canPerform(action, in: context)
         }
-    }
-}
 
+#if DEBUG
+        logCaptureIntentSearchDiagnostics(
+            context: context,
+            catalog: catalog,
+            disabledIDs: disabledIDs,
+            disabledPackages: disabledPackages,
+            hiddenGroups: hiddenGroups,
+            customGroupMemberToGroupID: customGroupMemberToGroupID
+        )
+#endif
+
+        return catalog
+    }
+
+#if DEBUG
+    private func logCaptureIntentSearchDiagnostics(
+        context: ActionContext,
+        catalog: [any Action],
+        disabledIDs: Set<String>,
+        disabledPackages: Set<String>,
+        hiddenGroups: Set<String>,
+        customGroupMemberToGroupID: [String: String]
+    ) {
+        let captureIntentID = "builtin.captureIntent"
+        let registeredAction = registeredActions.first { $0.id == captureIntentID }
+        let action = actions.first { $0.id == captureIntentID }
+        let diagnosticAction = action ?? registeredAction
+        let disabledInSettings = diagnosticAction.map {
+            isDisabledInSettings($0, disabledIDs: disabledIDs, disabledPackages: disabledPackages)
+        } ?? false
+        let belongsToHiddenGroup = diagnosticAction.map {
+            self.belongsToHiddenGroup(
+                $0,
+                hiddenGroupIDs: hiddenGroups,
+                customGroupMemberToGroupID: customGroupMemberToGroupID
+            )
+        } ?? false
+        let isEnabled = diagnosticAction?.isEnabled(for: context) ?? false
+        let canPerform = diagnosticAction.map { self.canPerform($0, in: context) } ?? false
+        let textPreview = String(context.selection.text.prefix(40))
+
+        Log.intent.debug("INTENTOS_DEBUG registered=\(registeredAction != nil, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG presentInActions=\(action != nil, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG disabledInSettings=\(disabledInSettings, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG belongsToHiddenGroup=\(belongsToHiddenGroup, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG launchesAI=\(diagnosticAction?.chrome.launchesAI ?? false, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG completionPseudo=\(diagnosticAction.map(ActionIdentity.isCompletionPseudoAction) ?? false, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG gatedExtension=\(diagnosticAction is GatedExtensionAction, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG selectionTextLength=\(context.selection.text.count, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG selectionIsClipboardFallback=\(context.selection.isClipboardFallback, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG requiresLiveSelection=\(diagnosticAction?.chrome.requiresLiveSelection ?? false, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG isEnabled=\(isEnabled, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG canPerform=\(canPerform, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG sourceAppName=\(context.selection.sourceApp.localizedName ?? "nil", privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG sourceAppBundleIdentifier=\(context.selection.sourceApp.bundleIdentifier ?? "nil", privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG selectedTextPreview=\(textPreview, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG presentInSearchCatalog=\(catalog.contains { $0.id == captureIntentID }, privacy: .public)")
+    }
+#endif
+}

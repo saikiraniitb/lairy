@@ -4,6 +4,7 @@
 // Manages global keyboard shortcuts using macOS event monitors and KeyboardShortcuts registrations.
 import Foundation
 import AppKit
+import ApplicationServices
 import Combine
 import KeyboardShortcuts
 import Core
@@ -250,11 +251,26 @@ public final class HotkeyManager {
         guard Self.triggerAllowed(frontmost: frontmostApp),
               let frontApp = frontmostApp else { return nil }
 
+#if DEBUG
+        Log.selection.debug("INTENTOS_SELECTION sourceApp=\(frontApp.localizedName ?? "unknown", privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION bundleID=\(frontApp.bundleIdentifier ?? "unknown", privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION accessibilityTrusted=\(AXIsProcessTrustedWithOptions(nil), privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION monitoredSelectionFound=\(self.selectionMonitor?.latestSelection != nil, privacy: .public)")
+#endif
+
         // Fast path: reuse active monitored selection without blocking on AX tree walk
         if let monitored = await selectionMonitor?.currentSelection(for: frontApp.bundleIdentifier) {
             let text = monitored.context.text
-            if TextSanitizer.isSubstantial(text),
-               text.utf8.count <= Constants.maxTextLength {
+            let isSubstantial = TextSanitizer.isSubstantial(text) && text.utf8.count <= Constants.maxTextLength
+#if DEBUG
+            Log.selection.debug("INTENTOS_SELECTION synchronousSelectionFound=\(isSubstantial, privacy: .public)")
+            Log.selection.debug("INTENTOS_SELECTION textLength=\(text.count, privacy: .public)")
+            Log.selection.debug("INTENTOS_SELECTION isClipboardFallback=\(monitored.context.isClipboardFallback, privacy: .public)")
+            Log.selection.debug("INTENTOS_SELECTION bounds=\(String(describing: monitored.context.selectionBounds), privacy: .public)")
+            let ageMs = Date().timeIntervalSince(monitored.context.timestamp) * 1000
+            Log.selection.debug("INTENTOS_SELECTION timestampAgeMs=\(ageMs, privacy: .public)")
+#endif
+            if isSubstantial {
                 let context = SelectionContext(
                     text: text,
                     sourceApp: monitored.context.sourceApp,
@@ -269,6 +285,10 @@ public final class HotkeyManager {
                 )
                 return (context, monitored.canPaste)
             }
+        } else {
+#if DEBUG
+            Log.selection.debug("INTENTOS_SELECTION synchronousSelectionFound=false")
+#endif
         }
 
         let policy = RuleEngine.shared.resolvePolicies(for: frontApp.bundleIdentifier ?? "")
@@ -278,11 +298,15 @@ public final class HotkeyManager {
         var retrievedText = ""
         var selectionBounds: CGRect? = nil
 
-        if let result = await SelectionRetrievalCoordinator().retrieve(
+        let coordinatorResult = await SelectionRetrievalCoordinator().retrieve(
             for: appIdentity,
             policy: policy,
             cursor: CursorClassifier.current.asCore
-        ) {
+        )
+#if DEBUG
+        Log.selection.debug("INTENTOS_SELECTION retrievalCoordinatorFound=\(coordinatorResult != nil, privacy: .public)")
+#endif
+        if let result = coordinatorResult {
             retrievedText = result.text
             selectionBounds = result.bounds
         }
@@ -298,6 +322,13 @@ public final class HotkeyManager {
                 lastFallbackClipboard = (currentChangeCount, clipboard)
             }
         }
+
+#if DEBUG
+        Log.selection.debug("INTENTOS_SELECTION textLength=\(retrievedText.count, privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION isClipboardFallback=\(isClipboardFallback, privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION bounds=\(String(describing: selectionBounds), privacy: .public)")
+        Log.selection.debug("INTENTOS_SELECTION timestampAgeMs=0")
+#endif
 
         guard TextSanitizer.isSubstantial(retrievedText),
               retrievedText.utf8.count <= Constants.maxTextLength else { return nil }

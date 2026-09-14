@@ -61,7 +61,7 @@ public final class PermissionManager: ObservableObject {
                 do {
                     _ = try await ShellProcessRunner.run(ShellProcessRunner.Invocation(
                         executableURL: URL(fileURLWithPath: "/usr/bin/tccutil"),
-                        arguments: ["reset", "Accessibility", "com.openclip.OpenClip"],
+                        arguments: ["reset", "Accessibility", Self.runningBundleIdentifier],
                         environment: [:]
                     ))
                 } catch {
@@ -90,7 +90,7 @@ public final class PermissionManager: ObservableObject {
             do {
                 _ = try await ShellProcessRunner.run(ShellProcessRunner.Invocation(
                     executableURL: URL(fileURLWithPath: "/usr/bin/tccutil"),
-                    arguments: ["reset", "Accessibility", "com.openclip.OpenClip"],
+                    arguments: ["reset", "Accessibility", Self.runningBundleIdentifier],
                     environment: [:]
                 ))
             } catch {
@@ -110,6 +110,17 @@ public final class PermissionManager: ObservableObject {
     }
 
     // MARK: - Internal
+
+    /// The bundle identifier `tccutil reset` must target. Must track `Bundle.main.bundleIdentifier`
+    /// rather than a literal: a hardcoded `"com.openclip.OpenClip"` here silently reset the wrong
+    /// (pre-rename) bundle's TCC entry once `PRODUCT_BUNDLE_IDENTIFIER` moved to
+    /// `com.openclip.intentos.experimental`, leaving the real, stuck-disabled Accessibility grant
+    /// for the running binary untouched — Preferences still showed the toggle "on" from a stale
+    /// cache while AX reads (and the synthetic ⌘C used for keyboard-copy apps like Notes) silently
+    /// failed.
+    internal static var runningBundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "com.openclip.OpenClip"
+    }
 
     /// Direct TCC query — bypasses any in-process caching.
     private static func queryAX() -> Bool {
