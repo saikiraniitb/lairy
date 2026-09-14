@@ -12,7 +12,9 @@ public final class IntentCaptureCoordinator: Sendable {
             // Gemini is already the primary cloud parser, so it has nothing to fall back to.
             cloudParser: engine == .needle ? CloudIntentParser() : nil,
             repository: FileIntentRepository.shared,
-            settingsStore: settings
+            settingsStore: settings,
+            sourceContextResolver: AccessibilitySourceContextResolver(),
+            notificationScheduler: UNUserNotificationIntentScheduler.shared
         )
     }()
 
@@ -31,6 +33,8 @@ public final class IntentCaptureCoordinator: Sendable {
     private let settingsStore: any SettingsStore
     private let metrics: IntentMetricsRecorder
     private let previewController: IntentPreviewWindowController
+    private let sourceContextResolver: any SourceContextResolving
+    private let notificationScheduler: any IntentNotificationScheduling
 
     public init(
         parser: any IntentParsing,
@@ -38,7 +42,9 @@ public final class IntentCaptureCoordinator: Sendable {
         repository: any IntentRepository,
         settingsStore: any SettingsStore = DefaultSettingsStore.shared,
         metrics: IntentMetricsRecorder = .shared,
-        previewController: IntentPreviewWindowController = IntentPreviewWindowController()
+        previewController: IntentPreviewWindowController = IntentPreviewWindowController(),
+        sourceContextResolver: any SourceContextResolving = NullSourceContextResolver(),
+        notificationScheduler: any IntentNotificationScheduling = UNUserNotificationIntentScheduler.shared
     ) {
         self.parser = parser
         self.cloudParser = cloudParser
@@ -46,16 +52,21 @@ public final class IntentCaptureCoordinator: Sendable {
         self.settingsStore = settingsStore
         self.metrics = metrics
         self.previewController = previewController
+        self.sourceContextResolver = sourceContextResolver
+        self.notificationScheduler = notificationScheduler
     }
 
     public func capture(selection: SelectionContext) async throws -> ActionResult {
         if let needleParser = parser as? NeedleIntentParser {
             await needleParser.setConfidenceThreshold(settingsStore.get(.intentConfidenceThreshold))
         }
+        // Bounded to metadata about THIS selected message only — see SourceContextResolving.
+        let sourceContext = await sourceContextResolver.resolve(from: selection)
         let context = IntentParsingContext(
             sourceApplicationName: selection.sourceApp.localizedName,
             sourceApplicationBundleIdentifier: selection.sourceApp.bundleIdentifier,
-            currentDate: Date()
+            currentDate: Date(),
+            sourceContext: sourceContext
         )
         let result: IntentParseResult
         do {
@@ -104,7 +115,9 @@ public final class IntentCaptureCoordinator: Sendable {
             anchor: anchor,
             onTrack: { [weak self] draft, wasEdited in
                 guard let self else { return }
-                try await self.repository.save(CapturedIntent(draft: draft))
+                let captured = CapturedIntent(draft: draft)
+                try await self.repository.save(captured)
+                await self.notificationScheduler.scheduleReminder(for: captured)
                 await self.metrics.record(self.metric(
                     draft: draft,
                     outcome: wasEdited ? .edited : .accepted

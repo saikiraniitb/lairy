@@ -98,11 +98,15 @@ public actor GeminiIntentParser: IntentParsing {
         let model = modelProvider()
 
         let started = ProcessInfo.processInfo.systemUptime
-        let rawJSONText = try await requestUnderstanding(source: source, apiKey: apiKey, model: model)
+        let rawJSONText = try await requestUnderstanding(source: source, sourceContext: context.sourceContext, apiKey: apiKey, model: model)
         let latency = (ProcessInfo.processInfo.systemUptime - started) * 1_000
 
-        let proposed = Self.decodeUnderstanding(from: rawJSONText)
-        let grounding = IntentGroundingValidator.validate(proposed, sourceText: source)
+        var proposed = Self.decodeUnderstanding(from: rawJSONText)
+        // Direction is trusted UI metadata, not something the model should override once known.
+        if let trustedDirection = context.sourceContext?.direction.asIntentDirection {
+            proposed.direction = trustedDirection
+        }
+        let grounding = IntentGroundingValidator.validate(proposed, sourceText: source, sourceContext: context.sourceContext)
         let type = IntentClassifier.classify(grounding.understanding)
         let parserName = "\(Self.parserPrefix).\(model)"
 
@@ -120,6 +124,12 @@ public actor GeminiIntentParser: IntentParsing {
         }
 
         let u = grounding.understanding
+        let temporal = IntentTemporalResolver.resolve(
+            type: type,
+            deadlineText: u.deadlineText,
+            sourceText: source,
+            currentDate: context.currentDate
+        )
         let draft = IntentDraft(
             type: type,
             summary: Self.summary(for: u, fallback: source),
@@ -132,7 +142,12 @@ public actor GeminiIntentParser: IntentParsing {
             waitingFor: u.waitingFor,
             responseExpected: u.responseExpected,
             requestedOutcome: u.requestedOutcome,
+            requestedBy: u.requestedBy,
             resources: grounding.resources,
+            dueAt: temporal.dueAt,
+            eventAt: temporal.eventAt,
+            followUpAt: temporal.followUpAt,
+            unresolvedTimeText: temporal.unresolvedTimeText,
             sourceText: source,
             sourceApplicationName: context.sourceApplicationName,
             sourceApplicationBundleIdentifier: context.sourceApplicationBundleIdentifier,
@@ -149,7 +164,7 @@ public actor GeminiIntentParser: IntentParsing {
 
     // MARK: - Networking
 
-    private func requestUnderstanding(source: String, apiKey: String, model: String) async throws -> String {
+    private func requestUnderstanding(source: String, sourceContext: IntentSourceContext?, apiKey: String, model: String) async throws -> String {
         let encodedModel = model.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? model
         guard let url = URL(string: "\(baseURL)/models/\(encodedModel):generateContent") else {
             throw GeminiIntentParserError.invalidResponse
@@ -159,7 +174,10 @@ public actor GeminiIntentParser: IntentParsing {
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: Self.requestBody(systemPrompt: Self.systemPrompt, userText: source))
+        request.httpBody = try JSONSerialization.data(withJSONObject: Self.requestBody(
+            systemPrompt: Self.systemPrompt,
+            userText: Self.userContent(source: source, sourceContext: sourceContext)
+        ))
 
         let (data, http): (Data, HTTPURLResponse)
         do {
@@ -223,6 +241,7 @@ public actor GeminiIntentParser: IntentParsing {
             requestedAction: str("requestedAction"),
             subject: str("subject"),
             target: str("target"),
+            requestedBy: str("requestedBy"),
             requestedOutcome: str("requestedOutcome"),
             temporalState: enumValue("temporalState", TemporalState.self),
             polarity: enumValue("polarity", Polarity.self),
@@ -277,6 +296,7 @@ public actor GeminiIntentParser: IntentParsing {
             "requestedAction": ["type": "STRING", "nullable": true],
             "subject": ["type": "STRING", "nullable": true],
             "target": ["type": "STRING", "nullable": true],
+            "requestedBy": ["type": "STRING", "nullable": true, "description": "Who asked for this action. If a trusted sender is given in CONTEXT, copy it exactly — never propose someone else, and never use a name only found because it was @mentioned inside SELECTED TEXT."],
             "requestedOutcome": ["type": "STRING", "nullable": true],
             "temporalState": ["type": "STRING", "enum": TemporalState.allCases.map(\.rawValue)],
             "polarity": ["type": "STRING", "enum": Polarity.allCases.map(\.rawValue)],
@@ -334,8 +354,43 @@ public actor GeminiIntentParser: IntentParsing {
       or a question with no first-person framing suggests incoming.
     - whether a response/reply is expected at all
 
+    The input may begin with a CONTEXT block — trusted metadata about the message, resolved by
+    IntentOS from application/accessibility structure, never from your own reading of the text.
+    When CONTEXT gives a "sender" and/or "direction", treat them as ground truth: copy the sender
+    into requestedBy verbatim when direction is incoming, and never let anything inside SELECTED
+    TEXT (including an @mention) override or replace it. An @mention that simply addresses the
+    reader at the start of a message (e.g. "Hi @Name,") identifies who the message is FOR, not who
+    it is FROM and not a "target" — it is presumed to be the user reading it. Only treat a named
+    person as a target/recipient when the text clearly asks the reader to direct something TO that
+    specific person (e.g. "send it to Priya"), not merely because their name appears.
+
     Return only structured data matching the provided schema.
     """
+
+    /// Builds the user-turn content: an optional trusted CONTEXT block (see `systemPrompt`)
+    /// followed by the verbatim selected text. Only ever the ONE selected message's metadata —
+    /// never surrounding conversation.
+    static func userContent(source: String, sourceContext: IntentSourceContext?) -> String {
+        guard let sourceContext, hasAnyTrustedField(sourceContext) else {
+            return source
+        }
+        var fields: [String: Any] = [:]
+        if let appName = sourceContext.applicationName { fields["source_application"] = appName }
+        if let sender = sourceContext.sender { fields["sender"] = sender }
+        if let title = sourceContext.conversationTitle { fields["conversation_title"] = title }
+        if let timestamp = sourceContext.timestampText { fields["timestamp"] = timestamp }
+        if sourceContext.direction != .unknown { fields["direction"] = sourceContext.direction.rawValue }
+
+        guard let contextData = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]),
+              let contextJSON = String(data: contextData, encoding: .utf8) else {
+            return source
+        }
+        return "CONTEXT:\n\(contextJSON)\n\nSELECTED TEXT:\n\(source)"
+    }
+
+    private static func hasAnyTrustedField(_ context: IntentSourceContext) -> Bool {
+        context.sender != nil || context.conversationTitle != nil || context.timestampText != nil || context.direction != .unknown
+    }
 }
 
 private extension String {

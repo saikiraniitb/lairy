@@ -109,12 +109,89 @@ final class GeminiIntentParserTests: XCTestCase {
             XCTAssertEqual(error as? GeminiIntentParserError, .invalidResponse)
         }
     }
+
+    // MARK: - Source context enrichment (real case: trusted sender vs. @mention)
+
+    private let realCaseSource = """
+    Hi @Sai Kiran Cherakam Sir, This is the updated landing page for Employer with our latest \
+    color pallet. Please have a look and let me know any changes that need to be made. Thankyou
+    """
+
+    /// The real case from the source-context milestone: Gemini (incorrectly) proposes the
+    /// @mention as requestedBy/target; the trusted sender must win regardless, and the mention
+    /// must never survive as a target either.
+    func testRealCaseTrustedSenderWinsOverMention() async throws {
+        let understanding = """
+        {"hasTrackableIntent":true,"speechAct":"request","direction":"incoming","actor":"other","owner":"self","requestedAction":"Review the landing page and provide feedback","subject":"updated landing page for Employer","requestedBy":"Sai Kiran Cherakam","temporalState":"present","polarity":"positive","commitmentStrength":"requested","responseExpected":true,"confidence":0.9}
+        """
+        let transport = FixedGeminiTransport(data: envelope(understanding), statusCode: 200)
+        let parser = makeParser(transport: transport)
+        let sourceContext = IntentSourceContext(
+            applicationName: "Google Chat",
+            sender: "Sai Siddeeswara Naidu Gurram",
+            conversationTitle: "Sai Siddeeswara Naidu Gurram",
+            direction: .incoming,
+            selectedText: realCaseSource
+        )
+        let context = IntentParsingContext(sourceApplicationName: "Google Chat", sourceContext: sourceContext)
+
+        let result = try await parser.parseIntent(from: realCaseSource, context: context)
+
+        guard case .intent(let draft) = result else { return XCTFail("Expected intent, got \(result)") }
+        XCTAssertEqual(draft.type, .action)
+        XCTAssertEqual(draft.requestedBy, "Sai Siddeeswara Naidu Gurram", "the trusted sender must win, never the @mention")
+        XCTAssertNil(draft.deadlineText)
+    }
+
+    /// Trusted direction overrides whatever the model itself guessed.
+    func testTrustedDirectionOverridesModelGuess() async throws {
+        // The model wrongly proposes outgoing; trusted context says incoming.
+        let understanding = """
+        {"hasTrackableIntent":true,"speechAct":"request","direction":"outgoing","actor":"self","owner":"self","requestedAction":"Review the landing page","confidence":0.8}
+        """
+        let transport = FixedGeminiTransport(data: envelope(understanding), statusCode: 200)
+        let parser = makeParser(transport: transport)
+        let sourceContext = IntentSourceContext(sender: "Sai Siddeeswara Naidu Gurram", direction: .incoming, selectedText: realCaseSource)
+        let context = IntentParsingContext(sourceContext: sourceContext)
+
+        let result = try await parser.parseIntent(from: realCaseSource, context: context)
+        guard case .intent(let draft) = result else { return XCTFail("Expected intent, got \(result)") }
+        // Incoming + owner=self => ACTION (would have been REQUEST/ambiguous had outgoing won).
+        XCTAssertEqual(draft.type, .action)
+    }
+
+    /// The request payload actually carries the trusted CONTEXT block ahead of the selected text,
+    /// and never includes anything beyond the one selected message + its trusted metadata.
+    func testRequestPayloadIncludesTrustedContext() async throws {
+        let understanding = #"{"hasTrackableIntent":false,"speechAct":"statement","temporalState":"present","polarity":"positive"}"#
+        let transport = FixedGeminiTransport(data: envelope(understanding), statusCode: 200)
+        let parser = makeParser(transport: transport)
+        let sourceContext = IntentSourceContext(sender: "Ravi Kumar", direction: .incoming, selectedText: "Please review this.")
+        _ = try await parser.parseIntent(from: "Please review this.", context: IntentParsingContext(sourceContext: sourceContext))
+
+        let body = await transport.lastRequestBodyString
+        XCTAssertTrue(body?.contains("CONTEXT:") == true)
+        XCTAssertTrue(body?.contains("Ravi Kumar") == true)
+        XCTAssertTrue(body?.contains("SELECTED TEXT:") == true)
+    }
+
+    /// No source context at all -> no CONTEXT block, just the plain text (unchanged behavior).
+    func testNoSourceContextOmitsContextBlock() async throws {
+        let understanding = #"{"hasTrackableIntent":false,"speechAct":"statement","temporalState":"present","polarity":"positive"}"#
+        let transport = FixedGeminiTransport(data: envelope(understanding), statusCode: 200)
+        let parser = makeParser(transport: transport)
+        _ = try await parser.parseIntent(from: "Please review this.", context: IntentParsingContext())
+
+        let body = await transport.lastRequestBodyString
+        XCTAssertFalse(body?.contains("CONTEXT:") == true)
+    }
 }
 
 private actor FixedGeminiTransport: GeminiTransport {
     let data: Data
     let statusCode: Int
     private(set) var callCount = 0
+    private(set) var lastRequestBodyString: String?
 
     init(data: Data, statusCode: Int) {
         self.data = data
@@ -123,6 +200,7 @@ private actor FixedGeminiTransport: GeminiTransport {
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         callCount += 1
+        lastRequestBodyString = request.httpBody.flatMap { String(data: $0, encoding: .utf8) }
         let response = HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
         return (data, response)
     }
