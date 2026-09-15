@@ -1,5 +1,11 @@
 # Logging
 
+IntentOS DEBUG capture traces use one `captureID` across selection, source_snapshot,
+source_context, gemini, grounding, normalized, preview, saved, and reloaded stages.
+Original selected text and raw provider responses are excluded from these traces. Semantic
+text fields use private logging; type, direction, timestamps, and IDs support correlation.
+Notification scheduling diagnostics report authorization and whether the request is pending.
+
 OpenClip uses a **Dual-Sink (Multi-Sink) Broadcast Logging Architecture** anchored by a single surface — `Log` (`Sources/Core/Log.swift`) — so every message belongs to a stable, greppable subsystem category and is filterable from the command line, log files, or Console.app. There is no ad-hoc `print()` anywhere in `Sources/`.
 
 ## Architecture Overview

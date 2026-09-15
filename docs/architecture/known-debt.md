@@ -330,6 +330,24 @@ areas; stale debt notes are worse than none.
 
 ## Selection Retrieval
 
+- **IntentOS source snapshots:** live selection now resolves bounded source metadata before
+  showing the popup, with exact text, bundle/PID and an eight-second TTL checked on capture.
+  Snapshot publication rechecks focus/cancellation after resolution. WhatsApp uses explicit
+  message provenance and its 1:1 navigation controls; Google Chat reads author structure from
+  the selected row. A space title cannot establish a person. Apple Notes remains out of scope.
+- **IntentOS live GUI validation (16 September 2026):** Cherry's real WhatsApp capture and a
+  Google Chat Product Team capture were each triggered by the user, then Preview, Track, the
+  file record and Inbox were inspected by the agent and agreed on the expected fields (Cherry:
+  WAITING / Connect with Cherry / tomorrow 08:00 event / no deadline; Product Team: WAITING /
+  Update the Coding Assessment document / waitingFor nil, since a space title cannot establish
+  a person). A real macOS notification for the Product Team item was also confirmed delivered,
+  then the follow-up was removed and the item restored to WAITING with no pending reminder.
+  Basic notification quick actions remain unimplemented. Do not treat unit tests as GUI proof
+  for scenarios not listed here.
+- **IntentOS date persistence:** new records encode `referenceSeconds` inside date objects to
+  preserve Date's native floating-point value exactly. Legacy Unix seconds and ISO dates remain
+  readable. Older app versions cannot read the new object representation.
+
 - **The coordinator runs a targeted strategy chain with native AX prioritization.**
   `retrievalMode` picks the entry point; retrieval runs that strategy and its fallbacks
   (native text controls fall back to keyboard copy unless strictly native; web areas cascade
