@@ -16,6 +16,13 @@ internal final class MacSelectionMonitor: SelectionMonitoring {
     /// retrieval so the popup can apply the result on its first frame. Wired to the popup controller
     /// by the composition root (AppDelegate).
     internal var preparePasteProbe: ((NSRunningApplication, AppPolicyContext) -> Task<Bool?, Never>?)?
+    /// Resolves an early `SourceContextSnapshot` for a freshly-delivered selection while its source
+    /// app is still frontmost — before OpenClip's own popup takes focus and, for some apps (e.g.
+    /// WhatsApp), the source app's accessibility tree becomes far less readable. Wired to
+    /// `CompositeSourceContextResolver` by the composition root (AppDelegate), same pattern as
+    /// `preparePasteProbe`; nil (the default) means no early snapshot is attempted and
+    /// `IntentCaptureCoordinator` falls back to its own late resolution, unchanged.
+    internal var resolveSourceContextSnapshot: ((SelectionContext) async -> SourceContextSnapshot?)?
     
     private var monitor: Any?
     private var keyDownMonitor: Any?
@@ -285,7 +292,7 @@ internal final class MacSelectionMonitor: SelectionMonitoring {
             guard TextSanitizer.isSubstantial(retrievedText),
                   retrievedText.utf8.count <= Constants.maxTextLength else { return }
 
-            let context = SelectionContext(
+            var context = SelectionContext(
                 text: retrievedText,
                 sourceApp: appIdentity,
                 cursorPosition: currentPoint,
@@ -300,6 +307,14 @@ internal final class MacSelectionMonitor: SelectionMonitoring {
             guard !Task.isCancelled else { return }
             guard !self.shouldSuppress(for: appIdentity.bundleIdentifier) else { return }
             delivered = true
+            // Resolve source context NOW, while `appIdentity` is still frontmost — see
+            // `resolveSourceContextSnapshot`'s doc comment.
+            if !isClipboardFallback, let resolver = resolveSourceContextSnapshot {
+                let snapshot = await resolver(context)
+                guard !Task.isCancelled,
+                      frontmostAppProvider()?.processIdentifier == appIdentity.processIdentifier else { return }
+                context = context.withSourceContextSnapshot(snapshot)
+            }
             latestSelection = (context, canPaste)
             prewarmInlineActions(for: context)
             await InlineResultEvaluator.shared.awaitPrewarmed(timeout: 0.025)
@@ -472,7 +487,7 @@ internal final class MacSelectionMonitor: SelectionMonitoring {
             clearSelection()
             return
         }
-        let context = SelectionContext(
+        var context = SelectionContext(
             text: result.text,
             sourceApp: appIdentity,
             cursorPosition: cursor,
@@ -486,6 +501,14 @@ internal final class MacSelectionMonitor: SelectionMonitoring {
         prewarmInlineActions(for: context)
         let canPaste = await probeTask?.value
         guard !Task.isCancelled else { return }
+        // Resolve source context NOW, while `appIdentity` is still frontmost — see
+        // `resolveSourceContextSnapshot`'s doc comment.
+        if let resolver = resolveSourceContextSnapshot {
+            let snapshot = await resolver(context)
+            guard !Task.isCancelled,
+                  frontmostAppProvider()?.processIdentifier == appIdentity.processIdentifier else { return }
+            context = context.withSourceContextSnapshot(snapshot)
+        }
         latestSelection = (context, canPaste)
         await InlineResultEvaluator.shared.awaitPrewarmed(timeout: 0.025)
         if !policy.hotkeyOnly {

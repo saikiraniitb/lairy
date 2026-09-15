@@ -146,10 +146,12 @@ public struct IntentInboxView: View {
                 }
                 Text(intent.summary).font(.title2.bold()).textSelection(.enabled)
 
-                if intent.type == .waiting {
-                    IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.followUpAt), kind: .followUp, unresolvedTimeText: intent.unresolvedTimeText)
-                } else if intent.eventAt != nil {
+                if intent.eventAt != nil || (intent.unresolvedTimeText != nil && IntentTemporalResolver.containsMeetingWording(intent.sourceText)) {
+                    // A grounded meeting/event time outranks the waiting-type default below — see
+                    // the matching branch order in IntentPreviewView (Preview == saved semantics).
                     IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.eventAt), kind: .event, unresolvedTimeText: intent.unresolvedTimeText)
+                } else if intent.type == .waiting {
+                    IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.followUpAt), kind: .followUp, unresolvedTimeText: intent.unresolvedTimeText)
                 } else if intent.type != .remember {
                     IntentWhenControl(value: temporalBinding(for: intent, keyPath: \.dueAt), kind: .due, unresolvedTimeText: intent.unresolvedTimeText)
                 }

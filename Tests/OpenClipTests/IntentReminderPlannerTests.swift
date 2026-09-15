@@ -2,6 +2,22 @@ import XCTest
 @testable import Core
 
 final class IntentReminderPlannerTests: XCTestCase {
+    func testNearFutureEventGetsImmediateReminder() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = IntentTemporalValue(date: now.addingTimeInterval(600), hasTime: true, provenance: .userSelected)
+        XCTAssertEqual(IntentReminderPlanner.plan(for: intent(eventAt: event), now: now)?.fireDate, now.addingTimeInterval(1))
+    }
+
+    func testPastEventHasNoReminder() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let event = IntentTemporalValue(date: now.addingTimeInterval(-1), hasTime: true, provenance: .userSelected)
+        XCTAssertNil(IntentReminderPlanner.plan(for: intent(eventAt: event), now: now))
+    }
+
+    func testRememberWithUserSelectedDateStillHasNoAutomaticReminder() {
+        let event = IntentTemporalValue(date: Date().addingTimeInterval(3600), hasTime: true, provenance: .userSelected)
+        XCTAssertNil(IntentReminderPlanner.plan(for: intent(type: .remember, eventAt: event)))
+    }
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!

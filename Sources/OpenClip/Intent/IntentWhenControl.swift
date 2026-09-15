@@ -174,6 +174,7 @@ public struct IntentWhenControl: View {
             return value.hasTime ? "\(prefix), \(formatter.string(from: value.date))" : prefix
         }
         if Calendar.current.isDateInTomorrow(value.date) {
+            formatter.dateStyle = .none
             let prefix = String(localized: "Tomorrow")
             return value.hasTime ? "\(prefix), \(formatter.string(from: value.date))" : prefix
         }

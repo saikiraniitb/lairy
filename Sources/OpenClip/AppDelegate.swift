@@ -96,6 +96,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         macMonitor.preparePasteProbe = { [weak self] app, policy in
             self?.popupController?.preparePasteProbe(for: app, policy: policy)
         }
+        // Resolve source context (conversation title/participant/sender/direction) NOW, while the
+        // source app is still frontmost — see MacSelectionMonitor.resolveSourceContextSnapshot and
+        // SourceContextSnapshot's file header for why this can't wait until Capture Intent is
+        // clicked (by which point some apps, e.g. WhatsApp, have already collapsed most of their
+        // accessibility tree). Never runs for a clipboard-fallback "selection" — there's no live
+        // element to resolve from context in that case.
+        let earlySourceContextResolver = CompositeSourceContextResolver()
+        macMonitor.resolveSourceContextSnapshot = { context in
+            guard !context.isClipboardFallback,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == context.sourceApp.processIdentifier else { return nil }
+            IntentCaptureTrace.record(stage: "selection", captureID: context.captureID, type: nil, sourceContext: nil)
+            let sourceContext = await earlySourceContextResolver.resolve(from: context)
+            guard !Task.isCancelled,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == context.sourceApp.processIdentifier else { return nil }
+            let captureID = context.captureID
+            IntentCaptureTrace.record(stage: "source_snapshot", captureID: captureID, type: nil, sourceContext: sourceContext)
+            IntentSourceContextLog.debug(
+                "INTENTOS_SOURCE_SNAPSHOT stage=captured captureID=\(captureID) sourceApp=\(context.sourceApp.bundleIdentifier ?? "unknown") "
+                + "pid=\(context.sourceApp.processIdentifier.map(String.init) ?? "nil") selectedTextLength=\(context.text.count) "
+                + "conversationTitle=\(sourceContext.conversationTitle ?? "nil") oneOnOneParticipant=\(sourceContext.oneOnOneParticipant ?? "nil") "
+                + "direction=\(sourceContext.direction.rawValue) ageMs=0"
+            )
+            return SourceContextSnapshot(
+                captureID: captureID,
+                sourceContext: sourceContext,
+                selectedText: context.text,
+                bundleIdentifier: context.sourceApp.bundleIdentifier,
+                sourcePID: context.sourceApp.processIdentifier
+            )
+        }
         // When a user has dragged a result card aside, selecting text in that same source app
         // should not re-open the action bar over the card being viewed. Other apps remain unsuppressed.
         macMonitor.isSuppressedForApp = { [weak self] bundleID in

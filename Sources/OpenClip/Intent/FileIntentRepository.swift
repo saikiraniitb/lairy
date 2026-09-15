@@ -14,12 +14,21 @@ public actor FileIntentRepository: IntentRepository {
         self.fileURL = fileURL ?? Self.defaultFileURL(fileManager: fileManager)
 
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .secondsSince1970
+        // Preserve Date's native Double exactly. Adding the epoch offset before encoding can
+        // lose a bit of fractional precision and break preview/save/reload equality.
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.container(keyedBy: StoredDateKey.self)
+            try container.encode(date.timeIntervalSinceReferenceDate, forKey: .referenceSeconds)
+        }
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         self.encoder = encoder
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
+            if let keyed = try? decoder.container(keyedBy: StoredDateKey.self),
+               let seconds = try keyed.decodeIfPresent(Double.self, forKey: .referenceSeconds) {
+                return Date(timeIntervalSinceReferenceDate: seconds)
+            }
             let container = try decoder.singleValueContainer()
             if let seconds = try? container.decode(Double.self) {
                 return Date(timeIntervalSince1970: seconds)
@@ -55,7 +64,13 @@ public actor FileIntentRepository: IntentRepository {
     }
 
     public func fetchAll() async throws -> [CapturedIntent] {
-        try load().sorted { lhs, rhs in
+        let loaded = try load()
+        for intent in loaded {
+            if let captureID = intent.captureID {
+                IntentCaptureTrace.record(stage: "reloaded", captureID: captureID, type: intent.type, sourceContext: intent.sourceContext)
+            }
+        }
+        return loaded.sorted { lhs, rhs in
             if lhs.status == rhs.status {
                 return lhs.updatedAt > rhs.updatedAt
             }
@@ -114,4 +129,6 @@ public actor FileIntentRepository: IntentRepository {
         case .cancelled: return 3
         }
     }
+
+    private enum StoredDateKey: String, CodingKey { case referenceSeconds }
 }

@@ -43,10 +43,13 @@ public struct IntentPreviewView: View {
             if model.draft.type == .remember {
                 optionalField("Subject", keyPath: \.subject)
             } else {
-                if model.draft.type == .waiting {
-                    IntentWhenControl(value: binding(\.followUpAt), kind: .followUp, unresolvedTimeText: model.draft.unresolvedTimeText)
-                } else if model.draft.eventAt != nil {
+                if model.draft.eventAt != nil || (model.draft.unresolvedTimeText != nil && IntentTemporalResolver.containsMeetingWording(model.draft.sourceText)) {
+                    // A grounded meeting/event time outranks the waiting-type default below —
+                    // "Connect with Cherry" should show "When: Tomorrow, 8:00 AM", not bury that
+                    // under "Follow up".
                     IntentWhenControl(value: binding(\.eventAt), kind: .event, unresolvedTimeText: model.draft.unresolvedTimeText)
+                } else if model.draft.type == .waiting {
+                    IntentWhenControl(value: binding(\.followUpAt), kind: .followUp, unresolvedTimeText: model.draft.unresolvedTimeText)
                 } else {
                     IntentWhenControl(value: binding(\.dueAt), kind: .due, unresolvedTimeText: model.draft.unresolvedTimeText)
                 }
@@ -162,15 +165,17 @@ public struct IntentPreviewView: View {
         return "\(location) • \(model.draft.parser)\(confidence)"
     }
 
-    private func field(_ title: String, text: Binding<String>) -> some View {
+    private func field(_ title: String, text: Binding<String>, placeholder: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title).font(.caption).foregroundStyle(.secondary).frame(width: 72, alignment: .leading)
-            TextField(title, text: text)
+            TextField(placeholder ?? title, text: text)
                 .textFieldStyle(.plain)
                 .disabled(!model.isEditing)
         }
     }
 
+    /// Placeholder is deliberately "None", never the field's own label ("Waiting for") — an empty
+    /// optional field must never look identical to a genuinely leaked placeholder value.
     private func optionalField(_ title: String, keyPath: WritableKeyPath<IntentDraft, String?>) -> some View {
         field(title, text: Binding(
             get: { model.draft[keyPath: keyPath] ?? "" },
@@ -178,7 +183,7 @@ public struct IntentPreviewView: View {
                 model.draft[keyPath: keyPath] = value.isEmpty ? nil : value
                 model.markEdited()
             }
-        ))
+        ), placeholder: "None")
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<IntentDraft, Value>) -> Binding<Value> {

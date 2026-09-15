@@ -1,6 +1,7 @@
 import Foundation
 
 public struct IntentParsingContext: Sendable {
+    public let captureID: UUID
     public let sourceApplicationName: String?
     public let sourceApplicationBundleIdentifier: String?
     public let currentDate: Date
@@ -12,8 +13,10 @@ public struct IntentParsingContext: Sendable {
         sourceApplicationName: String? = nil,
         sourceApplicationBundleIdentifier: String? = nil,
         currentDate: Date = Date(),
-        sourceContext: IntentSourceContext? = nil
+        sourceContext: IntentSourceContext? = nil,
+        captureID: UUID = UUID()
     ) {
+        self.captureID = captureID
         self.sourceApplicationName = sourceApplicationName
         self.sourceApplicationBundleIdentifier = sourceApplicationBundleIdentifier
         self.currentDate = currentDate

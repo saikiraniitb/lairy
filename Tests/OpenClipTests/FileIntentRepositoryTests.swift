@@ -3,6 +3,31 @@ import XCTest
 @testable import OpenClip
 
 final class FileIntentRepositoryTests: XCTestCase {
+    @MainActor func testPreviewTrackAndReloadPreserveAuthoritativeDraft() async throws {
+        let selected = "  Let's connect tomorrow at 8am\n"
+        var draft = IntentDraft(type: .waiting, summary: "Connect with Cherry", waitingFor: "Cherry",
+            eventAt: IntentTemporalValue(date: Date(timeIntervalSinceReferenceDate: 812345678.1234567), hasTime: true, provenance: .userSelected),
+            sourceText: selected, sourceApplicationName: "WhatsApp", parser: "test")
+        draft.captureID = UUID()
+        draft.sourceContext = IntentSourceContext(conversationTitle: "Cherry", oneOnOneParticipant: "Cherry", direction: .outgoing, selectedText: selected)
+        let expected = draft
+        let repository = try XCTUnwrap(repository)
+        let fileURL = temporaryDirectory.appendingPathComponent("intents.json")
+        let done = expectation(description: "Track saved and reloaded")
+        let model = IntentPreviewModel(draft: draft, isUncertain: false, cloudEnabled: false,
+            onTrack: { tracked, _ in
+                XCTAssertEqual(tracked, expected)
+                let captured = CapturedIntent(draft: tracked)
+                try await repository.save(captured)
+                let loaded = try await FileIntentRepository(fileURL: fileURL).fetchAll()
+                XCTAssertEqual(loaded, [captured])
+                XCTAssertEqual(loaded.first?.sourceText, selected)
+                XCTAssertEqual(loaded.first?.type, expected.type)
+                done.fulfill()
+            }, onIgnore: { _ in }, onCloud: { _ in }, onDismiss: {})
+        model.track()
+        await fulfillment(of: [done], timeout: 3)
+    }
     private var temporaryDirectory: URL!
     private var repository: FileIntentRepository!
 

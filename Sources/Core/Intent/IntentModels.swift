@@ -86,19 +86,25 @@ public struct IntentParserDiagnostics: Codable, Equatable, Sendable {
 }
 
 public struct IntentDraft: Codable, Equatable, Sendable {
+    public var captureID: UUID?
+    public var sourceContext: IntentSourceContext?
     public var type: IntentType
     public var summary: String
     public var subject: String?
     public var action: String?
     public var object: String?
-    public var target: String?
+    public var target: String? {
+        didSet { target = IntentGroundingValidator.personValue(target) }
+    }
     public var deadlineText: String?
     public var deadline: Date?
     public var trigger: String?
 
     /// Who/what the user is waiting on (a REQUEST/WAITING intent's counterpart). Grounded: only
     /// ever set when the value appears verbatim in `sourceText`.
-    public var waitingFor: String?
+    public var waitingFor: String? {
+        didSet { waitingFor = IntentGroundingValidator.personValue(waitingFor) }
+    }
     /// Whether a reply/response is expected at all, per the provider's understanding.
     public var responseExpected: Bool?
     /// The outcome the user is seeking (e.g. "feedback or approval"), distinct from `action`.
@@ -106,7 +112,9 @@ public struct IntentDraft: Codable, Equatable, Sendable {
     /// Who asked for this action. Trusted: either `IntentSourceContext.sender` (when a trusted
     /// sender was resolved) or a value grounded against source text — never an unverified provider
     /// guess. See `GeminiIntentParser` and `IntentGroundingValidator`.
-    public var requestedBy: String?
+    public var requestedBy: String? {
+        didSet { requestedBy = IntentGroundingValidator.personValue(requestedBy) }
+    }
     /// Deterministically extracted from `sourceText` — never provider-supplied. See
     /// `IntentResourceExtractor`.
     public var resources: [IntentResource]
@@ -160,14 +168,14 @@ public struct IntentDraft: Codable, Equatable, Sendable {
         self.subject = subject
         self.action = action
         self.object = object
-        self.target = target
+        self.target = IntentGroundingValidator.personValue(target)
         self.deadlineText = deadlineText
         self.deadline = deadline
         self.trigger = trigger
-        self.waitingFor = waitingFor
+        self.waitingFor = IntentGroundingValidator.personValue(waitingFor)
         self.responseExpected = responseExpected
         self.requestedOutcome = requestedOutcome
-        self.requestedBy = requestedBy
+        self.requestedBy = IntentGroundingValidator.personValue(requestedBy)
         self.resources = resources
         self.dueAt = dueAt
         self.eventAt = eventAt
@@ -185,19 +193,21 @@ public struct IntentDraft: Codable, Equatable, Sendable {
     /// `resources` existed: missing keys default to nil/empty rather than failing to decode.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        captureID = try container.decodeIfPresent(UUID.self, forKey: .captureID)
+        sourceContext = try container.decodeIfPresent(IntentSourceContext.self, forKey: .sourceContext)
         type = try container.decode(IntentType.self, forKey: .type)
         summary = try container.decode(String.self, forKey: .summary)
         subject = try container.decodeIfPresent(String.self, forKey: .subject)
         action = try container.decodeIfPresent(String.self, forKey: .action)
         object = try container.decodeIfPresent(String.self, forKey: .object)
-        target = try container.decodeIfPresent(String.self, forKey: .target)
+        target = IntentGroundingValidator.personValue(try container.decodeIfPresent(String.self, forKey: .target))
         deadlineText = try container.decodeIfPresent(String.self, forKey: .deadlineText)
         deadline = try container.decodeIfPresent(Date.self, forKey: .deadline)
         trigger = try container.decodeIfPresent(String.self, forKey: .trigger)
-        waitingFor = try container.decodeIfPresent(String.self, forKey: .waitingFor)
+        waitingFor = IntentGroundingValidator.personValue(try container.decodeIfPresent(String.self, forKey: .waitingFor))
         responseExpected = try container.decodeIfPresent(Bool.self, forKey: .responseExpected)
         requestedOutcome = try container.decodeIfPresent(String.self, forKey: .requestedOutcome)
-        requestedBy = try container.decodeIfPresent(String.self, forKey: .requestedBy)
+        requestedBy = IntentGroundingValidator.personValue(try container.decodeIfPresent(String.self, forKey: .requestedBy))
         resources = try container.decodeIfPresent([IntentResource].self, forKey: .resources) ?? []
         dueAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .dueAt)
         eventAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .eventAt)
@@ -214,6 +224,8 @@ public struct IntentDraft: Codable, Equatable, Sendable {
 
 public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
     public let id: UUID
+    public var captureID: UUID?
+    public var sourceContext: IntentSourceContext?
 
     public var type: IntentType
     public var status: IntentStatus
@@ -221,15 +233,21 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
     public var subject: String?
     public var action: String?
     public var object: String?
-    public var target: String?
+    public var target: String? {
+        didSet { target = IntentGroundingValidator.personValue(target) }
+    }
     public var deadlineText: String?
     public var deadline: Date?
     public var trigger: String?
 
-    public var waitingFor: String?
+    public var waitingFor: String? {
+        didSet { waitingFor = IntentGroundingValidator.personValue(waitingFor) }
+    }
     public var responseExpected: Bool?
     public var requestedOutcome: String?
-    public var requestedBy: String?
+    public var requestedBy: String? {
+        didSet { requestedBy = IntentGroundingValidator.personValue(requestedBy) }
+    }
     public var resources: [IntentResource]
 
     public var dueAt: IntentTemporalValue?
@@ -285,14 +303,14 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         self.subject = subject
         self.action = action
         self.object = object
-        self.target = target
+        self.target = IntentGroundingValidator.personValue(target)
         self.deadlineText = deadlineText
         self.deadline = deadline
         self.trigger = trigger
-        self.waitingFor = waitingFor
+        self.waitingFor = IntentGroundingValidator.personValue(waitingFor)
         self.responseExpected = responseExpected
         self.requestedOutcome = requestedOutcome
-        self.requestedBy = requestedBy
+        self.requestedBy = IntentGroundingValidator.personValue(requestedBy)
         self.resources = resources
         self.dueAt = dueAt
         self.eventAt = eventAt
@@ -338,6 +356,8 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
             createdAt: now,
             updatedAt: now
         )
+        self.captureID = draft.captureID
+        self.sourceContext = draft.sourceContext
     }
 
     /// Tolerates records written before `waitingFor`/`responseExpected`/`requestedOutcome`/
@@ -345,6 +365,8 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
     /// `IntentStatus.waiting` existed: missing keys default to nil/empty.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        captureID = try container.decodeIfPresent(UUID.self, forKey: .captureID)
+        sourceContext = try container.decodeIfPresent(IntentSourceContext.self, forKey: .sourceContext)
         id = try container.decode(UUID.self, forKey: .id)
         type = try container.decode(IntentType.self, forKey: .type)
         status = try container.decode(IntentStatus.self, forKey: .status)
@@ -352,14 +374,14 @@ public struct CapturedIntent: Identifiable, Codable, Equatable, Sendable {
         subject = try container.decodeIfPresent(String.self, forKey: .subject)
         action = try container.decodeIfPresent(String.self, forKey: .action)
         object = try container.decodeIfPresent(String.self, forKey: .object)
-        target = try container.decodeIfPresent(String.self, forKey: .target)
+        target = IntentGroundingValidator.personValue(try container.decodeIfPresent(String.self, forKey: .target))
         deadlineText = try container.decodeIfPresent(String.self, forKey: .deadlineText)
         deadline = try container.decodeIfPresent(Date.self, forKey: .deadline)
         trigger = try container.decodeIfPresent(String.self, forKey: .trigger)
-        waitingFor = try container.decodeIfPresent(String.self, forKey: .waitingFor)
+        waitingFor = IntentGroundingValidator.personValue(try container.decodeIfPresent(String.self, forKey: .waitingFor))
         responseExpected = try container.decodeIfPresent(Bool.self, forKey: .responseExpected)
         requestedOutcome = try container.decodeIfPresent(String.self, forKey: .requestedOutcome)
-        requestedBy = try container.decodeIfPresent(String.self, forKey: .requestedBy)
+        requestedBy = IntentGroundingValidator.personValue(try container.decodeIfPresent(String.self, forKey: .requestedBy))
         resources = try container.decodeIfPresent([IntentResource].self, forKey: .resources) ?? []
         dueAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .dueAt)
         eventAt = try container.decodeIfPresent(IntentTemporalValue.self, forKey: .eventAt)

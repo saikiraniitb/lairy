@@ -168,4 +168,40 @@ final class IntentGroundingValidatorTests: XCTestCase {
         let result = IntentGroundingValidator.validate(proposed, sourceText: "Please review this tomorrow.", sourceContext: context)
         XCTAssertEqual(result.understanding.deadlineText, "tomorrow")
     }
+
+    /// A confused provider echoing the field label itself ("Waiting for") as if it were a real
+    /// person's name must never survive grounding, even without a trusted override to correct it.
+    func testWaitingForPlaceholderLabelIsRejected() {
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, waitingFor: "Waiting for")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: "Let's connect tomorrow at 8am")
+        XCTAssertNil(result.understanding.waitingFor)
+        XCTAssertTrue(result.rejections.contains { $0.field == "waitingFor" })
+    }
+
+    /// A trusted 1:1 participant still overrides a placeholder guess outright — the hard-override
+    /// path never needs the provider's value to be sane in the first place.
+    func testWaitingForPlaceholderOverriddenByTrustedParticipant() {
+        let context = IntentSourceContext(oneOnOneParticipant: "Cherry", direction: .outgoing, selectedText: "Let's connect tomorrow at 8am")
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, speechAct: .request, direction: .outgoing, waitingFor: "Waiting for")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: "Let's connect tomorrow at 8am", sourceContext: context)
+        XCTAssertEqual(result.understanding.waitingFor, "Cherry")
+    }
+
+    /// The real "Skill UP BY Sai Kiran" WhatsApp group regression: "everyone" appears verbatim in
+    /// the broadcast itself ("Hi everyone... in this group"), so it would otherwise pass ordinary
+    /// text grounding — but it names no ONE person and must never survive as waitingFor/target,
+    /// same principle as the "Waiting for" UI-label placeholder.
+    func testCollectiveAddressTermNeverGroundsAsAPerson() {
+        let source = """
+        Hi everyone
+        See everyone in this group
+        Are having zero knowledge on the coding and software
+        So I've designed the course like that
+        Please go through the phase 1 docs
+        """
+        let proposed = IntentUnderstanding(hasTrackableIntent: true, target: "everyone", waitingFor: "everyone")
+        let result = IntentGroundingValidator.validate(proposed, sourceText: source)
+        XCTAssertNil(result.understanding.waitingFor)
+        XCTAssertNil(result.understanding.target)
+    }
 }

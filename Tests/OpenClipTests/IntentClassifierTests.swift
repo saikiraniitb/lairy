@@ -72,7 +72,7 @@ final class IntentClassifierTests: XCTestCase {
     func testOutgoingRequestIsRequestOrWaiting() {
         let u = understanding(speechAct: .request, direction: .outgoing, owner: .shared, polarity: .positive)
         let type = IntentClassifier.classify(u)
-        XCTAssertTrue(type == .request || type == .waiting, "expected REQUEST or WAITING, got \(String(describing: type))")
+        XCTAssertEqual(type, .waiting, "Outgoing requests remain WAITING even without an identified recipient")
     }
 
     /// H) "Please review this Figma and let me know if changes are needed." -> ACTION.

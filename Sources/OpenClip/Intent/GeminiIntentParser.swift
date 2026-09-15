@@ -102,12 +102,14 @@ public actor GeminiIntentParser: IntentParsing {
         let latency = (ProcessInfo.processInfo.systemUptime - started) * 1_000
 
         var proposed = Self.decodeUnderstanding(from: rawJSONText)
+        IntentCaptureTrace.record(stage: "gemini", captureID: context.captureID, type: nil, sourceContext: context.sourceContext)
         // Direction is trusted UI metadata, not something the model should override once known.
         if let trustedDirection = context.sourceContext?.direction.asIntentDirection {
             proposed.direction = trustedDirection
         }
         let grounding = IntentGroundingValidator.validate(proposed, sourceText: source, sourceContext: context.sourceContext)
         let type = IntentClassifier.classify(grounding.understanding)
+        IntentCaptureTrace.record(stage: "grounding", captureID: context.captureID, type: type, sourceContext: context.sourceContext)
         let parserName = "\(Self.parserPrefix).\(model)"
 
         let diagnostics = IntentParserDiagnostics(
@@ -130,14 +132,14 @@ public actor GeminiIntentParser: IntentParsing {
             sourceText: source,
             currentDate: context.currentDate
         )
-        let draft = IntentDraft(
+        var draft = IntentDraft(
             type: type,
             summary: Self.summary(for: u, fallback: source),
             subject: u.subject,
             action: u.requestedAction,
             target: u.target,
-            deadlineText: u.deadlineText,
-            deadline: IntentDeadlineResolver.resolve(u.deadlineText, relativeTo: context.currentDate),
+            deadlineText: temporal.dueAt == nil ? nil : u.deadlineText,
+            deadline: temporal.dueAt?.date,
             trigger: u.trigger,
             waitingFor: u.waitingFor,
             responseExpected: u.responseExpected,
@@ -148,13 +150,17 @@ public actor GeminiIntentParser: IntentParsing {
             eventAt: temporal.eventAt,
             followUpAt: temporal.followUpAt,
             unresolvedTimeText: temporal.unresolvedTimeText,
-            sourceText: source,
+            sourceText: text,
             sourceApplicationName: context.sourceApplicationName,
             sourceApplicationBundleIdentifier: context.sourceApplicationBundleIdentifier,
             parser: parserName,
             parserConfidence: u.confidence,
             diagnostics: diagnostics
         )
+
+        draft.captureID = context.captureID
+        draft.sourceContext = context.sourceContext
+        IntentCaptureTrace.record(stage: "normalized", draft: draft)
 
         if let confidence = u.confidence, confidence < 0.5 {
             return .uncertain(draft, confidence: confidence, diagnostics: diagnostics)
@@ -375,6 +381,14 @@ public actor GeminiIntentParser: IntentParsing {
     states a temporal commitment (a date, day, or time the task is due/scheduled for); the
     presence of message_timestamp is never a reason to populate deadlineText.
 
+    requestedOutcome is what the preview and inbox actually display as the item's headline, so
+    write it as a short, complete, specific sentence a reader could act on without opening the
+    original message — never a single bare verb copied from requestedAction. Ground it in the
+    concrete subject and, when direction is outgoing and a participant is known, name them: for
+    "so please update the doc accordingly" (subject "Coding Assessment"), write "Update the Coding
+    Assessment document" rather than "update the doc accordingly"; for "Let's connect tomorrow at
+    8am" with participant "Cherry", write "Connect with Cherry" rather than just "connect".
+
     Return only structured data matching the provided schema.
     """
 
@@ -389,6 +403,7 @@ public actor GeminiIntentParser: IntentParsing {
         if let appName = sourceContext.applicationName { fields["source_application"] = appName }
         if let sender = sourceContext.sender { fields["sender"] = sender }
         if let title = sourceContext.conversationTitle { fields["conversation_title"] = title }
+        if let participant = sourceContext.oneOnOneParticipant { fields["one_on_one_participant"] = participant }
         // Labeled distinctly from any deadline field, and called out explicitly in the system
         // prompt: this is when the message was SENT, never evidence of a task deadline.
         if let timestamp = sourceContext.timestampText { fields["message_timestamp"] = timestamp }

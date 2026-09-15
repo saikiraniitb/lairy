@@ -31,25 +31,48 @@ public actor UNUserNotificationIntentScheduler: IntentNotificationScheduling {
 
     public func scheduleReminder(for intent: CapturedIntent) async {
         center.removePendingNotificationRequests(withIdentifiers: [intent.id.uuidString])
+        center.removeDeliveredNotifications(withIdentifiers: [intent.id.uuidString])
 
-        guard let plan = IntentReminderPlanner.plan(for: intent), plan.fireDate > Date() else { return }
+        guard IntentReminderPlanner.plan(for: intent) != nil else {
+            await logCancellation(for: intent.id)
+            return
+        }
 
         await requestAuthorizationIfNeeded()
         let settings = await center.notificationSettings()
+        Log.intent.debug("notification intentID=\(intent.id.uuidString, privacy: .public) authorization=\(settings.authorizationStatus.rawValue, privacy: .public)")
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        // Authorization can take longer than the near-future lead window. Recompute afterward.
+        guard let plan = IntentReminderPlanner.plan(for: intent) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = plan.title
         content.body = plan.body
 
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: plan.fireDate)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: plan.fireDate)
+        let delay = plan.fireDate.timeIntervalSinceNow
+        let trigger: UNNotificationTrigger = delay < 60
+            ? UNTimeIntervalNotificationTrigger(timeInterval: max(1, delay), repeats: false)
+            : UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         let request = UNNotificationRequest(identifier: intent.id.uuidString, content: content, trigger: trigger)
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+            let pending = await center.pendingNotificationRequests()
+            Log.intent.debug("notification intentID=\(intent.id.uuidString, privacy: .public) scheduled=\(pending.contains { $0.identifier == intent.id.uuidString }, privacy: .public) fireDate=\(plan.fireDate.description, privacy: .public)")
+        } catch {
+            Log.intent.error("notification intentID=\(intent.id.uuidString, privacy: .public) scheduling failed: \(error.localizedDescription)")
+        }
     }
 
     public func cancelReminder(for intentID: UUID) async {
         center.removePendingNotificationRequests(withIdentifiers: [intentID.uuidString])
+        center.removeDeliveredNotifications(withIdentifiers: [intentID.uuidString])
+        await logCancellation(for: intentID)
+    }
+
+    private func logCancellation(for intentID: UUID) async {
+        let pending = await center.pendingNotificationRequests()
+        Log.intent.debug("notification intentID=\(intentID.uuidString, privacy: .public) cancelled=\(!pending.contains { $0.identifier == intentID.uuidString }, privacy: .public)")
     }
 
     private func requestAuthorizationIfNeeded() async {

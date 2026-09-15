@@ -28,16 +28,19 @@ public enum IntentReminderPlanner {
     /// self-owned actions, followUpAt for waiting" from the temporal model. REMEMBER never gets a
     /// reminder (its resolver never populates any of the three fields in the first place, so this
     /// falls out naturally). Only OPEN/WAITING intents get a plan — DONE/CANCELLED never do.
-    public static func plan(for intent: CapturedIntent, calendar: Calendar = .current) -> Plan? {
+    public static func plan(for intent: CapturedIntent, calendar: Calendar = .current, now: Date = Date()) -> Plan? {
         guard intent.status == .open || intent.status == .waiting else { return nil }
+        guard intent.type != .remember else { return nil }
 
         if let event = intent.eventAt {
-            return Plan(fireDate: fireDate(for: event, calendar: calendar), title: title, body: eventBody(intent, value: event))
+            guard let date = fireDate(for: event, calendar: calendar, now: now) else { return nil }
+            return Plan(fireDate: date, title: title, body: eventBody(intent, value: event))
         }
         if let due = intent.dueAt {
-            return Plan(fireDate: fireDate(for: due, calendar: calendar), title: title, body: dueBody(intent, value: due, calendar: calendar))
+            guard let date = fireDate(for: due, calendar: calendar, now: now) else { return nil }
+            return Plan(fireDate: date, title: title, body: dueBody(intent, value: due, calendar: calendar))
         }
-        if let followUp = intent.followUpAt {
+        if let followUp = intent.followUpAt, followUp.date > now {
             return Plan(fireDate: followUp.date, title: title, body: followUpBody(intent))
         }
         return nil
@@ -45,16 +48,20 @@ public enum IntentReminderPlanner {
 
     private static var title: String { String(localized: "IntentOS") }
 
-    private static func fireDate(for value: IntentTemporalValue, calendar: Calendar) -> Date {
+    private static func fireDate(for value: IntentTemporalValue, calendar: Calendar, now: Date) -> Date? {
         if value.hasTime {
-            return calendar.date(byAdding: .minute, value: -IntentReminderPolicy.timedReminderLeadMinutes, to: value.date) ?? value.date
+            guard value.date > now else { return nil }
+            let preferred = value.date.addingTimeInterval(-Double(IntentReminderPolicy.timedReminderLeadMinutes) * 60)
+            // Inside the lead window, notify in one second (or at the event if closer).
+            return preferred > now ? preferred : min(now.addingTimeInterval(1), value.date)
         }
-        return calendar.date(
+        let date = calendar.date(
             bySettingHour: IntentReminderPolicy.dateOnlyReminderHour,
             minute: IntentReminderPolicy.dateOnlyReminderMinute,
             second: 0,
             of: value.date
         ) ?? value.date
+        return date > now ? date : nil
     }
 
     private static func dueBody(_ intent: CapturedIntent, value: IntentTemporalValue, calendar: Calendar) -> String {

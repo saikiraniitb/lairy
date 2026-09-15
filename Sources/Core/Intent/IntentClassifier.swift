@@ -52,7 +52,9 @@ public enum IntentClassifier {
         case .incoming:
             return .action
         case .outgoing:
-            return u.waitingFor != nil ? .waiting : .request
+            // The outstanding request belongs to someone else even when a space does not
+            // identify its recipient. Unknown person must not change ownership semantics.
+            return .waiting
         case .selfDirected, .unknown, .none:
             if u.owner == .selfOwner { return .action }
             return u.waitingFor != nil ? .waiting : .request

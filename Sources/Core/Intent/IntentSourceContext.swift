@@ -28,7 +28,8 @@ public enum MessageDirection: String, Codable, CaseIterable, Sendable {
 /// Metadata attached to the ONE message the user explicitly selected — never the surrounding
 /// conversation. Every field here must be either trusted (resolved deterministically from
 /// app/accessibility structure) or nil; never a guess.
-public struct IntentSourceContext: Sendable, Equatable {
+public struct IntentSourceContext: Codable, Sendable, Equatable {
+    public var sourceURL: String?
     public var applicationName: String?
     public var bundleIdentifier: String?
 

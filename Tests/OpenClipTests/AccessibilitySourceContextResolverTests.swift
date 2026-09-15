@@ -8,6 +8,15 @@ import XCTest
 /// real focused UI element and is exercised manually against Google Chat — see
 /// docs/intentos/manual-test.md and the DEBUG INTENTOS_SOURCE_CONTEXT log output.
 final class AccessibilitySourceContextResolverTests: XCTestCase {
+    func testUncalibratedBrowserDoesNotBorrowFrontmostAppMetadata() async {
+        let selection = SelectionContext(text: "Please review this", sourceApp: AppIdentity(bundleIdentifier: "com.apple.Safari", localizedName: "Safari", processIdentifier: 999999))
+        let context = await AccessibilitySourceContextResolver().resolve(from: selection)
+        XCTAssertNil(context.sender)
+        XCTAssertNil(context.oneOnOneParticipant)
+        XCTAssertNil(context.conversationTitle)
+        XCTAssertEqual(context.direction, .unknown)
+        XCTAssertEqual(context.selectedText, selection.text)
+    }
     func testRecognizesPlausiblePersonName() {
         XCTAssertTrue(AccessibilitySourceContextResolver.looksLikePersonName("Sai Siddeeswara Naidu Gurram"))
         XCTAssertTrue(AccessibilitySourceContextResolver.looksLikePersonName("Ravi Kumar"))

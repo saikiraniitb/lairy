@@ -2,6 +2,19 @@ import XCTest
 @testable import Core
 
 final class IntentDomainTests: XCTestCase {
+    func testPersonPlaceholdersRejectedAtInitializationMutationAndDecoding() throws {
+        for placeholder in ["Waiting for", "Requested by", "To", "Unknown", "None", "N/A"] {
+            var draft = IntentDraft(type: .waiting, summary: "Review", target: placeholder, waitingFor: placeholder, requestedBy: placeholder, sourceText: "Review", parser: "test")
+            XCTAssertNil(draft.waitingFor)
+            XCTAssertNil(draft.target)
+            XCTAssertNil(draft.requestedBy)
+            draft.waitingFor = placeholder
+            XCTAssertNil(draft.waitingFor)
+            let data = try JSONEncoder().encode(draft)
+            let loaded = try JSONDecoder().decode(IntentDraft.self, from: data)
+            XCTAssertNil(loaded.waitingFor)
+        }
+    }
     func testCapturedIntentPreservesDraftAndSourceText() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let draft = IntentDraft(

@@ -13,7 +13,7 @@ public final class IntentCaptureCoordinator: Sendable {
             cloudParser: engine == .needle ? CloudIntentParser() : nil,
             repository: FileIntentRepository.shared,
             settingsStore: settings,
-            sourceContextResolver: AccessibilitySourceContextResolver(),
+            sourceContextResolver: CompositeSourceContextResolver(),
             notificationScheduler: UNUserNotificationIntentScheduler.shared
         )
     }()
@@ -61,12 +61,14 @@ public final class IntentCaptureCoordinator: Sendable {
             await needleParser.setConfidenceThreshold(settingsStore.get(.intentConfidenceThreshold))
         }
         // Bounded to metadata about THIS selected message only — see SourceContextResolving.
-        let sourceContext = await sourceContextResolver.resolve(from: selection)
+        let sourceContext = await resolveSourceContext(for: selection)
+        IntentCaptureTrace.record(stage: "source_context", captureID: selection.captureID, type: nil, sourceContext: sourceContext)
         let context = IntentParsingContext(
             sourceApplicationName: selection.sourceApp.localizedName,
             sourceApplicationBundleIdentifier: selection.sourceApp.bundleIdentifier,
             currentDate: Date(),
-            sourceContext: sourceContext
+            sourceContext: sourceContext,
+            captureID: selection.captureID
         )
         let result: IntentParseResult
         do {
@@ -102,12 +104,53 @@ public final class IntentCaptureCoordinator: Sendable {
         }
     }
 
+    /// Prefers an early `SourceContextSnapshot` (resolved while the source app was still
+    /// frontmost — see that type's file header) over late resolution, but only once
+    /// `SourceContextSnapshotValidator` confirms it still matches THIS selection: a trusted early
+    /// snapshot must win over weaker/empty late context, but a stale or mismatched one must never
+    /// leak into a different capture — late resolution is always the safe fallback.
+    /// `internal` rather than `private` solely so it's directly unit-testable via `@testable
+    /// import` without needing to drive the whole preview/repository UI flow — not part of the
+    /// coordinator's public API.
+    internal func resolveSourceContext(for selection: SelectionContext) async -> IntentSourceContext {
+        guard let snapshot = selection.sourceContextSnapshot else {
+            let late = await sourceContextResolver.resolve(from: selection)
+            IntentSourceContextLog.debug("INTENTOS_SOURCE_SNAPSHOT stage=consumed captureID=none matchedSelection=false ageMs=0 used=false fallbackReason=no_snapshot")
+            return late
+        }
+
+        let now = Date()
+        let isValid = SourceContextSnapshotValidator.isValid(
+            snapshot,
+            selectedText: selection.text,
+            bundleIdentifier: selection.sourceApp.bundleIdentifier,
+            sourcePID: selection.sourceApp.processIdentifier,
+            now: now,
+            ttl: Constants.sourceContextSnapshotTTL
+        )
+        let ageMs = Int(now.timeIntervalSince(snapshot.capturedAt) * 1000)
+
+        guard isValid else {
+            let late = await sourceContextResolver.resolve(from: selection)
+            IntentSourceContextLog.debug(
+                "INTENTOS_SOURCE_SNAPSHOT stage=consumed captureID=\(snapshot.captureID) matchedSelection=false ageMs=\(ageMs) used=false fallbackReason=stale_or_mismatched"
+            )
+            return late
+        }
+
+        IntentSourceContextLog.debug(
+            "INTENTOS_SOURCE_SNAPSHOT stage=consumed captureID=\(snapshot.captureID) matchedSelection=true ageMs=\(ageMs) used=true fallbackReason=none"
+        )
+        return snapshot.sourceContext
+    }
+
     private func present(
         draft: IntentDraft,
         isUncertain: Bool,
         context: IntentParsingContext,
         anchor: CGPoint
     ) {
+        IntentCaptureTrace.record(stage: "preview", draft: draft)
         previewController.show(
             draft: draft,
             isUncertain: isUncertain,
@@ -117,6 +160,7 @@ public final class IntentCaptureCoordinator: Sendable {
                 guard let self else { return }
                 let captured = CapturedIntent(draft: draft)
                 try await self.repository.save(captured)
+                IntentCaptureTrace.record(stage: "saved", draft: draft)
                 await self.notificationScheduler.scheduleReminder(for: captured)
                 await self.metrics.record(self.metric(
                     draft: draft,

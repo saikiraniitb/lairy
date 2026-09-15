@@ -85,6 +85,95 @@ final class IntentTemporalResolverTests: XCTestCase {
         XCTAssertNil(result.eventAt)
     }
 
+    /// "Let's connect tomorrow at 8am" — a WAITING proposal with a genuine meeting time (per the
+    /// real WhatsApp regression) must become an event, never a due date or a follow-up reminder.
+    func testWaitingWithMeetingTimeProducesEventAtNotFollowUp() {
+        let result = IntentTemporalResolver.resolve(
+            type: .waiting,
+            deadlineText: "tomorrow at 8am",
+            sourceText: "Let's connect tomorrow at 8am",
+            currentDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertNotNil(result.eventAt)
+        XCTAssertEqual(result.eventAt?.hasTime, true)
+        XCTAssertNil(result.dueAt)
+        XCTAssertNil(result.followUpAt)
+        let components = calendar.dateComponents([.hour], from: result.eventAt!.date)
+        XCTAssertEqual(components.hour, 8)
+    }
+
+    /// A multi-message selection's plain text can carry an inline rendered timestamp between
+    /// messages (a real Google Chat regression) — that must never surface as an "unresolved time
+    /// mention" even though it matches the bare clock-time shape.
+    func testMessageTimestampInSourceTextNeverBecomesUnresolvedTime() {
+        let result = IntentTemporalResolver.resolve(
+            type: .waiting,
+            deadlineText: nil,
+            sourceText: """
+            These are the changes discussed with pavan
+            so please update the doc accordingly
+            Shreya Guptha Vutukuri, 26 Aug, 10:29
+            okay i will update
+            """,
+            currentDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertNil(result.unresolvedTimeText, "26 Aug, 10:29 is a rendered message timestamp, not a phrase anyone wrote")
+        XCTAssertNil(result.dueAt)
+        XCTAssertNil(result.eventAt)
+        XCTAssertNil(result.followUpAt)
+    }
+
+    /// Same shape, a weekday-abbreviation timestamp ("Fri 15:51") rather than day+month.
+    func testWeekdayAbbreviatedTimestampNeverBecomesUnresolvedTime() {
+        let result = IntentTemporalResolver.resolve(
+            type: .action,
+            deadlineText: nil,
+            sourceText: "Shreya Guptha Vutukuri  Fri 15:51\nhere's the doc",
+            currentDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertNil(result.unresolvedTimeText)
+    }
+
+    /// The real "Skill UP BY Sai Kiran" WhatsApp group regression: WhatsApp's own Cmd+C copy
+    /// prepends "[DD/MM/YY, HH:MM:SS AM/PM] Sender: " to a copied message — that bracketed export
+    /// timestamp must never surface as a mentioned meeting time either, even though it's a bare
+    /// time with no weekday/month name of its own (only the bracketed date makes it recognizable
+    /// as metadata rather than something the user wrote).
+    func testWhatsAppCopyExportPrefixNeverBecomesUnresolvedTime() {
+        let result = IntentTemporalResolver.resolve(
+            type: .waiting,
+            deadlineText: nil,
+            sourceText: """
+            [06/09/26, 11:00:31 PM] Saikiran: Hi everyone
+            See everyone in this group
+            Let's start our journey from 07/09/2026
+            By end of everyday please keep your updates
+            """,
+            currentDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertNil(result.unresolvedTimeText, "11:00:31 PM is WhatsApp's own copy-export timestamp, not a mentioned meeting time")
+    }
+
+    /// A genuine in-message time mention must still surface as unresolved when it sits nowhere
+    /// near a calendar-date token — the timestamp regex must not overreach into real content.
+    func testGenuineBareTimeMentionNextToTimestampStillUnresolved() {
+        let result = IntentTemporalResolver.resolve(
+            type: .waiting,
+            deadlineText: nil,
+            sourceText: """
+            Shreya Guptha Vutukuri, 26 Aug, 10:29
+            can we push the call to 6pm instead
+            """,
+            currentDate: referenceDate,
+            calendar: calendar
+        )
+        XCTAssertEqual(result.unresolvedTimeText, "6pm", "the real in-message time must still be found once the timestamp line is stripped")
+    }
+
     /// REMEMBER never gets a reminder by default, even if a date is mentioned in passing.
     func testRememberNeverProducesATemporalBucket() {
         let result = IntentTemporalResolver.resolve(

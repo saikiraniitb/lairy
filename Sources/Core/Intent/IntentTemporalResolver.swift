@@ -8,12 +8,31 @@ import Foundation
 
 public enum IntentTemporalResolver {
     /// Meeting/session wording that prefers `eventAt` over `dueAt` when a time is present.
-    private static let meetingKeywords = ["meet", "meeting", "session", "call", "sync", "catch up", "chat at", "hangout"]
+    private static let meetingKeywords = ["meet", "meeting", "session", "call", "sync", "catch up", "chat at", "hangout", "connect"]
 
     private static let clockTimeRegex: NSRegularExpression = {
         // swiftlint:disable:next force_try
         try! NSRegularExpression(
             pattern: #"\b(\d{1,2})(:([0-5]\d))?\s?(am|pm|AM|PM)\b|\b([01]?\d|2[0-3]):([0-5]\d)\b"#,
+            options: []
+        )
+    }()
+
+    /// Message-list timestamp shapes an app prepends/appends to each rendered message — "26 Aug,
+    /// 10:27", "Fri 15:51", or WhatsApp's own copy/export prefix "[06/09/26, 11:00:31 PM]
+    /// Saikiran: " — that can leak into a multi-message selection's plain text (sender labels and
+    /// timestamps sitting inline between message bubbles get concatenated along with the real
+    /// content by the underlying AX/text extraction, or WhatsApp's Cmd+C copy itself adds this
+    /// prefix to each copied message). These are never a phrase the user wrote, so they're
+    /// stripped before scanning for a genuinely mentioned clock time — see `firstClockTimePhrase`.
+    /// Deliberately narrow: each alternative only matches a clock time sitting directly beside an
+    /// explicit calendar-date token (day + month name, a weekday abbreviation, or a bracketed
+    /// numeric date), which is the universal shape of a rendered/exported message timestamp and
+    /// not something a real in-message mention like "at 5pm" or "tomorrow at 8am" ever looks like.
+    private static let messageTimestampRegex: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(
+            pattern: #"\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*,?\s*\d{1,2}:\d{2}\s?(?:[AaPp][Mm])?|\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\.?,?\s*\d{1,2}:\d{2}\s?(?:[AaPp][Mm])?|\[\d{1,2}/\d{1,2}/\d{2,4},?\s*\d{1,2}:\d{2}(?::\d{2})?\s?(?:[AaPp][Mm])?\]\s*[^:\n]{1,60}:\s*"#,
             options: []
         )
     }()
@@ -79,6 +98,13 @@ public enum IntentTemporalResolver {
 
         switch type {
         case .waiting:
+            // A grounded meeting/session time on a WAITING intent is a proposed event ("Let's
+            // connect tomorrow at 8am" -> When: Tomorrow, 8:00 AM), not a reminder to check back —
+            // only a genuine date-only phrase with no clock time and no meeting wording ("Check
+            // again Monday") still becomes a follow-up.
+            if hasTime, containsMeetingWording(sourceText) {
+                return Resolution(eventAt: value)
+            }
             return Resolution(followUpAt: value)
         case .action, .request:
             if hasTime, containsMeetingWording(sourceText) {
@@ -104,17 +130,26 @@ public enum IntentTemporalResolver {
         return stripped
     }
 
-    private static func containsMeetingWording(_ text: String) -> Bool {
+    /// Shared with date-entry UI so choosing a date for a bare meeting time creates an
+    /// event, not a deadline or follow-up merely because its intent type is WAITING.
+    public static func containsMeetingWording(_ text: String) -> Bool {
         let lower = text.lowercased()
         return meetingKeywords.contains { lower.contains($0) }
     }
 
     private static func firstClockTimePhrase(in text: String) -> String? {
-        let nsText = text as NSString
-        guard let match = clockTimeRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: nsText.length)) else {
+        let sanitized = strippingMessageTimestamps(from: text)
+        let nsText = sanitized as NSString
+        guard let match = clockTimeRegex.firstMatch(in: sanitized, options: [], range: NSRange(location: 0, length: nsText.length)) else {
             return nil
         }
         return nsText.substring(with: match.range)
+    }
+
+    private static func strippingMessageTimestamps(from text: String) -> String {
+        let nsText = text as NSString
+        let range = NSRange(location: 0, length: nsText.length)
+        return messageTimestampRegex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
     }
 
     /// Parses "5pm", "5:30pm", "17:00" into 24-hour hour/minute. Returns nil for anything else.

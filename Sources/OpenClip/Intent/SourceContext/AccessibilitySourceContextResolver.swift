@@ -1,21 +1,10 @@
 // AccessibilitySourceContextResolver.swift
 // OpenClip
 //
-// Provider-neutral, app-agnostic resolver for `IntentSourceContext`. Never coupled to a specific
-// app: it walks a SMALL, BOUNDED neighborhood around the currently focused UI element (the one the
-// user just selected text in) looking for structural signals — nearby short static-text elements
-// that look like a person's name or a timestamp, the focused window's title as a conversation
-// hint, and the message bubble's on-screen position relative to the window as a direction signal
-// (own messages are conventionally right-aligned in chat UIs; never inferred from wording). It
-// never reads anything outside that bounded neighborhood: no conversation history, no contact
-// list, no hidden page text.
-//
-// This is deliberately a heuristic, not a per-app scraper: Google Chat (running as a web app in
-// Chrome) is the first real target, reached generically through the same AX structure any
-// message-like UI tends to expose (a short name/time label near the selected message body, a
-// left/right-aligned bubble), not through any Chrome- or Google-specific string matching. If a
-// future app's structure defeats these heuristics, the fix is a narrower, purpose-built
-// `SourceContextResolving` conformer for that app — not broadening this one's reach.
+// Conservative app-agnostic fallback. Identity, message authorship and bubble alignment require
+// source-specific structural validation, supplied by the calibrated adapters in the composite
+// resolver. The historical candidate helpers remain for regression/research only; they are not
+// trusted runtime enrichment. In particular a name-shaped group title is not a participant.
 import AppKit
 import Core
 @_exported import OpenSelection
@@ -37,48 +26,16 @@ public struct AccessibilitySourceContextResolver: SourceContextResolving {
     }
 
     public func resolve(from selection: SelectionContext) async -> IntentSourceContext {
-        var context = IntentSourceContext(
+        // No universal AX convention establishes a chat author, a 1:1 participant, or
+        // even that a left/right aligned element is a message. Keep generic capture
+        // useful without asserting those identities. Calibrated source adapters enrich
+        // this context; legacy candidate helpers below are not production evidence.
+        // In particular, never inspect the *currently* focused app during late fallback.
+        IntentSourceContext(
             applicationName: selection.sourceApp.localizedName,
             bundleIdentifier: selection.sourceApp.bundleIdentifier,
             selectedText: selection.text
         )
-
-        // V1 scope: only browsers (the first real case, Google Chat, is a web app). A native
-        // app's AX structure varies too much to safely apply the same heuristics without its own
-        // calibration — see the file header.
-        guard let bundleID = selection.sourceApp.bundleIdentifier, Self.isSupportedBrowser(bundleID) else {
-            return context
-        }
-
-        let target = AXElementInspector.inspect()
-        guard let focusedElement = target.focusedElement else {
-            IntentSourceContextLog.debug("no focused element; nothing to enrich")
-            return context
-        }
-
-        let window = Self.focusedWindow(for: target.focusedApp)
-        context.conversationTitle = window.flatMap { AXElementInspector.read($0, kAXTitleAttribute) as? String }
-        // A 1:1 conversation's window/tab title in Google Chat (and similarly-structured chat
-        // apps) IS the other participant's name. A group chat's title does not shape like a
-        // single person's name, so this stays nil there — see the trust rule in the file header
-        // and IntentSourceContext.oneOnOneParticipant's doc comment.
-        context.oneOnOneParticipant = context.conversationTitle.flatMap { Self.looksLikePersonName($0) ? $0 : nil }
-        IntentSourceContextLog.debug("startRole=\(target.role ?? "nil") conversationTitle=\(context.conversationTitle ?? "nil") oneOnOneParticipant=\(context.oneOnOneParticipant ?? "nil")")
-
-        let windowFrame = window.flatMap(Self.elementFrame)
-        let found = Self.findMessageMetadata(
-            near: focusedElement,
-            windowFrame: windowFrame,
-            maxAncestorDepth: maxAncestorDepth,
-            maxDescendantDepth: maxDescendantDepth,
-            maxChildrenPerLevel: maxChildrenPerLevel,
-            excluding: selection.text
-        )
-        context.sender = found.sender
-        context.timestampText = found.timestampText
-        context.direction = found.direction
-
-        return context
     }
 
     // MARK: - Bounded neighborhood walk

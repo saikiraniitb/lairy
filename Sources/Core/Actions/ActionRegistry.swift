@@ -446,7 +446,7 @@ public final class ActionRegistry: ObservableObject, Sendable {
         Log.intent.debug("INTENTOS_DEBUG canPerform=\(canPerform, privacy: .public)")
         Log.intent.debug("INTENTOS_DEBUG sourceAppName=\(context.selection.sourceApp.localizedName ?? "nil", privacy: .public)")
         Log.intent.debug("INTENTOS_DEBUG sourceAppBundleIdentifier=\(context.selection.sourceApp.bundleIdentifier ?? "nil", privacy: .public)")
-        Log.intent.debug("INTENTOS_DEBUG selectedTextPreview=\(textPreview, privacy: .public)")
+        Log.intent.debug("INTENTOS_DEBUG selectedTextPreviewLength=\(textPreview.count, privacy: .public)")
         Log.intent.debug("INTENTOS_DEBUG presentInSearchCatalog=\(catalog.contains { $0.id == captureIntentID }, privacy: .public)")
     }
 #endif

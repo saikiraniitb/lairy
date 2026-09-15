@@ -88,12 +88,14 @@ public enum IntentGroundingValidator {
         let trustedNames = [sourceContext?.sender, sourceContext?.oneOnOneParticipant]
             .compactMap { $0 }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+            .filter { !$0.isEmpty && !isPersonPlaceholder($0) }
         // An outgoing message with a reliably-known 1:1 participant: that participant is always
         // who the user is waiting on, deterministically overriding whatever the provider proposed
         // (including a wrong guess that latched onto some other name mentioned in the message) —
         // never left to the model's own judgment, same hard-override pattern as requestedBy below.
-        if understanding.direction == .outgoing, let participant = normalized(sourceContext?.oneOnOneParticipant) {
+        if sourceContext?.direction == .outgoing,
+           understanding.speechAct == .request || understanding.speechAct == .instruction,
+           let participant = normalized(sourceContext?.oneOnOneParticipant), !isPersonPlaceholder(participant) {
             if let proposedWaitingFor = normalized(understanding.waitingFor),
                proposedWaitingFor.caseInsensitiveCompare(participant) != .orderedSame {
                 rejections.append(IntentGroundingRejection(
@@ -111,7 +113,7 @@ public enum IntentGroundingValidator {
         // requestedBy: a trusted sender always wins outright — never let the provider's own
         // guess (which may have latched onto an @mention inside the message body) override who
         // deterministic UI metadata says actually sent it.
-        if let trustedSender = normalized(sourceContext?.sender) {
+        if let trustedSender = normalized(sourceContext?.sender), !isPersonPlaceholder(trustedSender) {
             if let proposedBy = normalized(understanding.requestedBy),
                proposedBy.caseInsensitiveCompare(trustedSender) != .orderedSame {
                 rejections.append(IntentGroundingRejection(
@@ -177,7 +179,10 @@ public enum IntentGroundingValidator {
         field: String,
         rejections: inout [IntentGroundingRejection]
     ) {
-        guard let value = normalized(understanding[keyPath: keyPath]) else {
+        guard let value = normalized(understanding[keyPath: keyPath]), !isPersonPlaceholder(value) else {
+            if let value = normalized(understanding[keyPath: keyPath]) {
+                rejections.append(IntentGroundingRejection(field: field, value: value, reason: "looks like a UI label, not a person"))
+            }
             understanding[keyPath: keyPath] = nil
             return
         }
@@ -194,5 +199,26 @@ public enum IntentGroundingValidator {
     private static func normalized(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
         return trimmed
+    }
+
+    /// Values that must never stand as a person identity even though they can pass ordinary
+    /// verbatim-text grounding: UI-label placeholders a confused provider can echo back (e.g.
+    /// mistaking the "Waiting for" field label itself for its value), and generic collective
+    /// address terms a group broadcast ("Hi everyone... please go through the docs") legitimately
+    /// contains verbatim but that name no ONE person — grounded only if a trusted override (a
+    /// real 1:1 participant, or an actual name elsewhere in the text) supplies a real name instead.
+    private static let personPlaceholders: Set<String> = [
+        "waiting for", "requested by", "to", "unknown", "none", "n/a", "na",
+        "everyone", "everybody", "anyone", "someone", "all", "you all", "y'all",
+        "guys", "folks", "team", "the group", "all of you", "the team"
+    ]
+
+    public static func isPersonPlaceholder(_ value: String) -> Bool {
+        personPlaceholders.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    public static func personValue(_ value: String?) -> String? {
+        guard let value = normalized(value), !isPersonPlaceholder(value) else { return nil }
+        return value
     }
 }

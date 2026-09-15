@@ -132,6 +132,12 @@ public enum Constants {
     /// Maximum age (seconds) for a monitored selection before it is treated as stale.
     public static let selectionMaxAge: TimeInterval = 30.0
 
+    /// Maximum age (seconds) for an early-resolved `SourceContextSnapshot` before
+    /// `IntentCaptureCoordinator` discards it and falls back to late resolution. Short — this only
+    /// needs to bridge the interval between a selection appearing and the user clicking
+    /// "Capture Intent" in the popup, not the full `selectionMaxAge` window.
+    public static let sourceContextSnapshotTTL: TimeInterval = 8.0
+
     /// Default duration (seconds) of holding the mouse button down to trigger the popup.
     public static let defaultMouseHoldDuration: TimeInterval = 0.3
 
